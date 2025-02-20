@@ -3,6 +3,7 @@
 out
 simWorkspace
 /*.v
+python/**/*.v
 *.bin
 *.bak
 sim_build
@@ -15,3 +16,4 @@ SPINAL_BENCH_WORKSPACE
 .devcontainer
 build
 .vscode
+*.tldr
