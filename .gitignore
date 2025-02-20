@@ -1,0 +1,17 @@
+.metals
+.bloop
+out
+simWorkspace
+/*.v
+*.bin
+*.bak
+sim_build
+__pycache__
+/rtl
+SPINAL_BENCH_WORKSPACE
+/*.sv
+.bsp
+.Ds_Store
+.devcontainer
+build
+.vscode
