@@ -27,7 +27,6 @@ case class PulseOpParam(
 
 case class Pulse(p: PulseOpParam, instruction: Bits) {
   val idS = 128 - p.idWidth
-  // val phaseS = durationS - p.durationWidth
   val phaseS = idS - p.phaseWidth
   val freqS = phaseS - p.freqWidth
   val durationS = freqS - p.durationWidth

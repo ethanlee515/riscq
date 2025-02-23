@@ -25,7 +25,7 @@ class CarrierPlugin(specs: Seq[CarrierGeneratorSpec], idWidth: Int = 5) extends 
 
     val num = specs.length
     val freqWidth = specs.head.freqWidth
-    val valids = Vec.fill(num)(Bool())
+    val valids = Vec.fill(num)(Reg(Bool()))
     cgPorts.zipWithIndex.foreach{ case (cg, id) => 
       cg.time := tp.logic.time 
       valids(id) := False
@@ -33,14 +33,16 @@ class CarrierPlugin(specs: Seq[CarrierGeneratorSpec], idWidth: Int = 5) extends 
     }
 
     val carrierLogic = new pp.Execute(0) {
-      val id = Decode.INSTRUCTION(128 - 5, 5 bits)
-      val freq = Decode.INSTRUCTION(128 - 5 - freqWidth, freqWidth bits)
-      val phase = Decode.INSTRUCTION(128 - 5 - freqWidth - freqWidth, freqWidth bits)
-      cgPorts.foreach{ cg =>
+      val instBuffer = Vec.fill(specs.length)(Reg(this(Decode.INSTRUCTION))) // for timing
+      for((cg, buf) <- cgPorts zip instBuffer) {
+        buf := Decode.INSTRUCTION
+        val freq = buf(128 - 5 - freqWidth, freqWidth bits)
+        val phase = buf(128 - 5 - freqWidth - freqWidth, freqWidth bits)
         cg.cmd.freq := freq.asSInt
         cg.cmd.phase := phase.asSInt
       }
-      when(SEL && isValid) {
+      val id = Decode.INSTRUCTION(128 - 5, 5 bits)
+      when(SEL && isValid && isReady) {
         valids(id.asUInt.resized) := True
       }
     }
