@@ -94,7 +94,9 @@ class FetchCachelessBramConnectArea(fcp: FetchCachelessPlugin, port: MemReadWrit
     port.wdata := 0
     port.mask.setAllTo(True)
 
-    port.address := fcp.logic.bus.cmd.address(4, port.addressWidth bit)
+    val wordWidth = fcp.wordWidth
+    val addrShift = log2Up(wordWidth / 8)
+    port.address := fcp.logic.bus.cmd.address(addrShift, port.addressWidth bit)
     // val id = RegNext(RegNext(fcp.logic.bus.cmd.id))
     // val valid = RegNext(RegNext(fcp.logic.bus.cmd.valid) init False) init False
     // val word = RegNext(port.rdata)
