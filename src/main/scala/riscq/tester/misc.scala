@@ -17,12 +17,12 @@ object ByteHelper {
   }
 
   def intToBinStr(x: BigInt, b: Int): String = {
-    val compx = if (x < 0) (x + (1 << (b - 1))) else x
+    val compx = if (x < 0) (x + (1 << b)) else x
     compx.toString(2).reverse.padTo(b, '0').reverse
   }
 }
 
-object RvInst {
+class RvAssembler(wordWidth: Int) {
   def typeR(opcode: String, funct7: String, funct3: String, rs1: Int, rs2: Int, rd: Int) = {
     assert(opcode.length == 7)
     assert(funct7.length == 7)
@@ -34,12 +34,12 @@ object RvInst {
     res += ByteHelper.intToBinStr(rd, 5)
     res += opcode
     assert(res.length == 32)
-    res = "0" * (128 - 32) + res
+    res = "0" * (wordWidth - 32) + res
     res
   }
 
-  def addInst(rs1: Int, rs2: Int, rd: Int) = typeR("0110011", "0000000", "000", rs1, rs2, rd)
-  def subInst(rs1: Int, rs2: Int, rd: Int) = typeR("0110011", "0100000", "000", rs1, rs2, rd)
+  def add(rd: Int, rs1: Int, rs2: Int) = typeR("0110011", "0000000", "000", rs1, rs2, rd)
+  def sub(rd: Int, rs1: Int, rs2: Int) = typeR("0110011", "0100000", "000", rs1, rs2, rd)
 
   def typeI(opcode: String, funct3: String, imm: Int, rs1: Int, rd: Int) = {
     assert(opcode.length == 7)
@@ -50,31 +50,32 @@ object RvInst {
     res += ByteHelper.intToBinStr(rd, 5)
     res += opcode
     assert(res.length == 32)
-    res = "0" * (128 - 32) + res
+    res = "0" * (wordWidth - 32) + res
     res
   }
 
-  def addiInst(imm: Int, rs1: Int, rd: Int) = typeI("0010011", "000", imm, rs1, rd)
-  def lwInst(offset: Int, rs1: Int, rd: Int): String = typeI("0000011", "010", imm = offset, rs1 = rs1, rd = rd)
+  def addi(rd: Int, rs1: Int, imm: Int) = typeI("0010011", "000", imm, rs1, rd)
+  def nop = addi(0, 0, 0)
+  def lw(rd: Int, imm: Int, rs1: Int): String = typeI("0000011", "010", imm = imm, rs1 = rs1, rd = rd)
 
   def typeB(opcode: String, funct3: String, imm: Int, rs1: Int, rs2: Int) = {
     assert(opcode.length == 7)
     assert(funct3.length == 3)
-    val immStr = ByteHelper.intToBinStr(imm, 12).reverse
-    var res = immStr.slice(11, 12)
-    res += immStr.slice(4,10).reverse
+    val immStr = ByteHelper.intToBinStr(imm, 13).reverse
+    var res = immStr.slice(12, 13)
+    res += immStr.slice(5,11).reverse
     res += ByteHelper.intToBinStr(rs2, 5)
     res += ByteHelper.intToBinStr(rs1, 5)
     res += funct3
-    res += immStr.slice(0, 4).reverse
-    res += immStr.slice(10, 11)
+    res += immStr.slice(1, 5).reverse
+    res += immStr.slice(11, 12)
     res += opcode
     assert(res.length == 32, s"length is ${res.length}")
-    res = "0" * (128 - 32) + res
+    res = "0" * (wordWidth - 32) + res
     res
   }
 
-  def beqInst(imm: Int, rs1: Int, rs2: Int) = typeB("1100011", "000", imm, rs1, rs2)
+  def beq(rs1: Int, rs2: Int, imm: Int) = typeB("1100011", "000", imm, rs1, rs2)
 
   def typeS(opcode: String, funct3: String, imm: Int, rs1: Int, rs2: Int) = {
     assert(opcode.length == 7)
@@ -88,14 +89,14 @@ object RvInst {
     res += immStr.slice(0, 5).reverse
     res += opcode
     assert(res.length == 32, s"length is ${res.length}")
-    res = "0" * (128 - 32) + res
+    res = "0" * (wordWidth - 32) + res
     res
   }
-  def swInst(offset: Int, rs1: Int, rs2: Int): String = typeS("0100011", "010", imm = offset, rs1 = rs1, rs2 = rs2)
+  def sw(rs2: Int, imm: Int, rs1: Int): String = typeS("0100011", "010", imm = imm, rs1 = rs1, rs2 = rs2)
 }
 
 object Qubic {
-  def timerInst(resetTime: Int) = {
+  def setTime(resetTime: Int) = {
     var res = ""
     res += ByteHelper.intToBinStr(resetTime, 32)
     res += "0" * 64
@@ -103,7 +104,7 @@ object Qubic {
     res += opcode
     res
   }
-  def waitInst(waitUntil: Int) = {
+  def waiti(waitUntil: Int) = {
     var res = ""
     res += ByteHelper.intToBinStr(waitUntil, 32)
     res += "0" * 64
@@ -111,7 +112,7 @@ object Qubic {
     res += opcode
     res
   }
-  def carrierInst(freq: Int, phase: Int, id: Int = 0, freqWidth: Int = 16, phaseWidth: Int = 16): String = {
+  def carrier(freq: Int, phase: Int, id: Int = 0, freqWidth: Int = 16, phaseWidth: Int = 16): String = {
     var res = ""
     res += ByteHelper.intToBinStr(id, 5)
     res += ByteHelper.intToBinStr(freq, freqWidth)
@@ -121,7 +122,7 @@ object Qubic {
     res += "0" * zeroLength + opcode
     res
   }
-  def pulseInst(puop: PulseOpParam, start: Int, addr: Int, duration: Int, phase: Int, freq: Int, amp: Int, id: Int = 0): String = {
+  def pulse(puop: PulseOpParam, start: Int, addr: Int, duration: Int, phase: Int, freq: Int, amp: Int, id: Int = 0): String = {
     var res = ""
     res += ByteHelper.intToBinStr(id, puop.idWidth)
     res += ByteHelper.intToBinStr(phase, puop.phaseWidth)
@@ -138,7 +139,7 @@ object Qubic {
     res += "0" * zeroLength + opcode
     res
   }
-  def readInst(id: Int, time: Int, start: Int = 0): String = {
+  def read(id: Int, time: Int, start: Int = 0): String = {
     val startStr = ByteHelper.intToBinStr(start, 32)
     val timeStr = ByteHelper.intToBinStr(time, 12)
     var idStr = ByteHelper.intToBinStr(id, 5)
@@ -148,7 +149,7 @@ object Qubic {
     val res = startStr + "0"*zeroLength + timeStr + idStr + funct3 + "00000" + opcode
     res
   }
-  def writeRInst(id: Int, rd: Int): String = {
+  def readr(id: Int, rd: Int): String = {
     var idStr = ByteHelper.intToBinStr(id, 5)
     val rdStr = ByteHelper.intToBinStr(rd, 5)
     val opcode = "1111011"
@@ -157,7 +158,7 @@ object Qubic {
     val res = "0"*zeroLength + idStr + funct3 + rdStr + opcode
     res
   }
-  def writeIInst(id: Int, rd: Int): String = {
+  def readi(id: Int, rd: Int): String = {
     var idStr = ByteHelper.intToBinStr(id, 5)
     val rdStr = ByteHelper.intToBinStr(rd, 5)
     val opcode = "1111011"

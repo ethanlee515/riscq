@@ -22,11 +22,11 @@ import spinal.lib.eda.bench.Bench
 import riscq.misc.XilinxRfsocTarget
 
 object MinimalSocPlugins {
-  def getplugins = new Area {
-    val wordWidth = 32
-    val regFileSync = false
-    val enableBypass = true
-
+  def getplugins(
+    wordWidth: Int = 32, 
+    regFileSync: Boolean = true,
+    enableBypass: Boolean = true
+    ) = new Area {
     val plugins = ArrayBuffer[FiberPlugin]()
     plugins += new riscq.misc.PipelineBuilderPlugin()
     plugins += new schedule.PipelinePlugin()
@@ -62,12 +62,14 @@ object MinimalSocPlugins {
   }
 }
 
-case class MinimalSoc() extends Component {
-  val pluginArea = MinimalSocPlugins.getplugins
-  val plugins = pluginArea.plugins
-  val wordWidth = pluginArea.wordWidth
-  val iMem = Mem.fill(1024)(Bits(wordWidth bit))
-  val dMem = Mem.fill(1024)(Bits(32 bit))
+case class MinimalSoc(whiteboxer: Boolean = false, wordWidth: Int = 32, regFileSync: Boolean = false) extends Component {
+  val pluginArea = MinimalSocPlugins.getplugins(wordWidth = wordWidth, regFileSync = regFileSync)
+  var plugins = pluginArea.plugins
+  if(whiteboxer) {
+    plugins += new test.WhiteboxerPlugin()
+  }
+  val iMem = Mem.fill(1024)(Bits(wordWidth bit)).simPublic()
+  val dMem = Mem.fill(1024)(Bits(32 bit)).simPublic()
 
   val memConnects = plugins.map {
     case p: fetch.FetchCachelessPlugin => {
@@ -90,7 +92,7 @@ case class MinimalSoc() extends Component {
 object BenchMinimalSoc extends App {
   val rtl = Rtl(
     SpinalVerilog(
-      MinimalSoc()
+      MinimalSoc(regFileSync = false)
     )
   )
   Bench(List(rtl), XilinxRfsocTarget(), "./build/")
@@ -99,7 +101,7 @@ object BenchMinimalSoc extends App {
 // - Virtex UltraScale+ -> 604 Mhz 727 LUT 882 FF 0 BRAM 0 URAM
 object BenchMinimal extends App {
   val rtl = Rtl(SpinalVerilog {
-    val pluginArea = MinimalSocPlugins.getplugins
+    val pluginArea = MinimalSocPlugins.getplugins()
     RiscQ(pluginArea.plugins)
   })
   Bench(List(rtl), XilinxRfsocTarget(), "./build/")

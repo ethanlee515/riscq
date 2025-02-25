@@ -52,26 +52,33 @@ class WhiteboxerPlugin() extends FiberPlugin{
       val valid = wrap(pcp.logic.output.valid)
     }
 
-    val insts = new Area {
-      val ex_2 = wrap(pp.execute(-2)(Decode.INSTRUCTION))
-      val v_2 = wrap(pp.execute(-2).isValid)
-      val r_2 = wrap(pp.execute(-2).isReady)
-      val pc_2 = wrap(pp.execute(-2)(Fetch.WORD_PC))
-      val ex_1 = wrap(pp.execute(-1)(Decode.INSTRUCTION))
-      val v_1 = wrap(pp.execute(-1).isValid)
-      val r_1 = wrap(pp.execute(-1).isReady)
-      val ex0 = wrap(pp.execute(0)(Decode.INSTRUCTION))
-      val v0 = wrap(pp.execute(0).isValid)
-      val r0 = wrap(pp.execute(0).isReady)
-      val ex1 = wrap(pp.execute(1)(Decode.INSTRUCTION))
-      val v1 = wrap(pp.execute(1).isValid)
-      val r1 = wrap(pp.execute(1).isReady)
-      val ex2 = wrap(pp.execute(2)(Decode.INSTRUCTION))
-      val v2 = wrap(pp.execute(2).isValid)
-      val r2 = wrap(pp.execute(2).isReady)
-      val ex3 = wrap(pp.execute(3)(Decode.INSTRUCTION))
-      val v3 = wrap(pp.execute(3).isValid)
-      val r3 = wrap(pp.execute(3).isReady)
+    val exInsts = new Area {
+      pp.logic.await()
+      val exCtrls = pp.exIdToCtrl.toList.sortBy(_._1).map(_._2)
+      val data = for(ctrl <- exCtrls) yield new Area {
+        val inst = wrap(ctrl(Decode.INSTRUCTION))
+        val valid = wrap(ctrl.isValid)
+        val ready = wrap(ctrl.isReady)
+      }
+      // val ex_2 = wrap(pp.execute(-2)(Decode.INSTRUCTION))
+      // val v_2 = wrap(pp.execute(-2).isValid)
+      // val r_2 = wrap(pp.execute(-2).isReady)
+      // val pc_2 = wrap(pp.execute(-2)(Fetch.WORD_PC))
+      // val ex_1 = wrap(pp.execute(-1)(Decode.INSTRUCTION))
+      // val v_1 = wrap(pp.execute(-1).isValid)
+      // val r_1 = wrap(pp.execute(-1).isReady)
+      // val ex0 = wrap(pp.execute(0)(Decode.INSTRUCTION))
+      // val v0 = wrap(pp.execute(0).isValid)
+      // val r0 = wrap(pp.execute(0).isReady)
+      // val ex1 = wrap(pp.execute(1)(Decode.INSTRUCTION))
+      // val v1 = wrap(pp.execute(1).isValid)
+      // val r1 = wrap(pp.execute(1).isReady)
+      // val ex2 = wrap(pp.execute(2)(Decode.INSTRUCTION))
+      // val v2 = wrap(pp.execute(2).isValid)
+      // val r2 = wrap(pp.execute(2).isReady)
+      // val ex3 = wrap(pp.execute(3)(Decode.INSTRUCTION))
+      // val v3 = wrap(pp.execute(3).isValid)
+      // val r3 = wrap(pp.execute(3).isReady)
     }
 
     val fcp = host[FetchCachelessPlugin]
@@ -130,11 +137,12 @@ class WhiteboxerPlugin() extends FiberPlugin{
       // val phaseR = wrap(pg.pg.phaseC.r)
     })
 
-    val rfpo = host.get[RegFilePlugin]
-    val rf = rfpo.nonEmpty generate new Area {
-      val p = rfpo.get
+    val rfp = host.get[RegFilePlugin]
+    val rf = rfp.nonEmpty generate new Area {
+      val p = rfp.get
       val mem = p.logic.regfile.fpga.asMem.ram
     }
+
     val wbpo = host.get[WriteBackPlugin]
     val wbp = wbpo.nonEmpty generate new Area {
       val p = wbpo.get
