@@ -91,11 +91,11 @@ class TileLinkMemReadWriteLogic[T <: Data](p : BusParameter, port: MemReadWriteP
     build()
   }
 
-  val ordering = Flow(OrderingCmd(p.sizeBytes))
-  ordering.valid := io.up.a.fire && io.up.a.isLast()
-  ordering.debugId := io.up.a.debugId
-  ordering.bytes := (U(1) << io.up.a.size).resized
-  Component.current.addTag(new OrderingTag(ordering.stage()))
+  // val ordering = Flow(OrderingCmd(p.sizeBytes))
+  // ordering.valid := io.up.a.fire && io.up.a.isLast()
+  // ordering.debugId := io.up.a.debugId
+  // ordering.bytes := (U(1) << io.up.a.size).resized
+  // Component.current.addTag(new OrderingTag(ordering.stage()))
 }
 
 case class TileLinkMemReadWriteFiber[T <: Data](port: MemReadWritePort[T]) extends Area {
