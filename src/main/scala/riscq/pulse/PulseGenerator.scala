@@ -57,6 +57,10 @@ case class PulseGeneratorWithCarrierInput(spec: PulseGeneratorSpec) extends Comp
   }
   // io.data.valid := False
   val addr = Reg(UInt(log2Up(spec.bufferDepth) bits))
+  val addrIncr = Reg(Bool())
+  when(addrIncr) {
+    addr := addr + U(1)
+  }
 
   io.memPort.cmd.payload := addr
   io.memPort.cmd.valid := True
@@ -120,7 +124,7 @@ case class PulseGeneratorWithCarrierInput(spec: PulseGeneratorSpec) extends Comp
   valid := False
   valid.addAttribute("MAX_FANOUT", "16")
   io.data.valid := valid
-  
+
   val ioDataBuf = RegNext(eacPReg)
   val ioDataBufBuf = Reg(ioDataBuf)
   ioDataBufBuf := valid.mux(ioDataBuf, ioDataBufBuf.getZero)
@@ -129,10 +133,10 @@ case class PulseGeneratorWithCarrierInput(spec: PulseGeneratorSpec) extends Comp
   val timer = Reg(UInt(spec.clockWidth bits)) init 0
 
   val fsm = new StateMachine {
-    val idle = makeInstantEntry() //0
+    val idle = makeInstantEntry() // 0
     idle.whenIsActive {
+      addrIncr := False
       when(io.cmd.fire) {
-        // cosSin.io.cmd.valid := True
         amp := io.cmd.amp
         addr := io.cmd.addr
         phase := io.cmd.phase
@@ -142,21 +146,17 @@ case class PulseGeneratorWithCarrierInput(spec: PulseGeneratorSpec) extends Comp
     }
     val waitCosSin = new StateDelay(cyclesCount = cosSin.delay + 1) { // 1
       whenCompleted {
-        // when(cosSin.io.rsp.fire) {
-          phaseC.assignTruncated(cosSin.io.rsp)
-          goto(warmMul)
-        // }
+        phaseC.assignTruncated(cosSin.io.rsp)
+        goto(warmMul)
       }
     }
-    val warmMul = new StateDelay(cyclesCount = 2) {
+    val warmMul = new StateDelay(cyclesCount = 1) {
       whenCompleted {
         goto(waitMul)
+        addrIncr := True
       }
     }
-    val waitMul = new StateDelay(cyclesCount = 9) { // 2
-      whenIsActive {
-        addr := addr + 1
-      }
+    val waitMul = new StateDelay(cyclesCount = 10) { // 2
       whenCompleted {
         goto(running)
       }
@@ -166,7 +166,6 @@ case class PulseGeneratorWithCarrierInput(spec: PulseGeneratorSpec) extends Comp
         // ioDataBufBuf := ioDataBuf
         // io.data.valid := True
         valid := True
-        addr := addr + 1
         timer := timer - 1
         when(timer === 0) {
           exit()
@@ -220,7 +219,6 @@ object PGTestPulse {
 }
 
 object PGCTest extends App {
-  val n = 32
   val dataWidth = 16
   val addrWidth = 10
   val phaseWidth = 16
@@ -286,7 +284,6 @@ object PGCTest extends App {
         }
       }
 
-      val iters = n / batchSize
       // dut.memPort.write #= false
       // for (i <- 0 until 100) {
       //   val concat = List.fill(batchSize)(100.toBigInt)
@@ -304,17 +301,32 @@ object PGCTest extends App {
 
       dut.io.cmd.valid #= true
       dut.io.cmd.addr #= 0
-      dut.io.cmd.duration #= iters
+      dut.io.cmd.duration #= 4
       dut.io.cmd.amp #= dut.io.cmd.amp.maxValue
       // dut.io.cmd.freq #= 1 << (phaseWidth - 5)
       // dut.io.cmd.freq #= 0
       // dut.io.cmd.phase #= 0
-      dut.io.cmd.phase #= dut.io.cmd.phase.maxValue / 2 
+      dut.io.cmd.phase #= dut.io.cmd.phase.maxValue / 2
       dut.clockDomain.waitRisingEdge()
       dut.io.cmd.valid #= false
-      val concat100 = List.fill(batchSize)(100.toBigInt)
-      // val concat100 = List.fill(batchSize)(dut.io.cmd.amp.maxValue / 2 - 1)
-      dut.io.memPort.rsp #= PGTestPulse.concat(concat100, dataWidth)
+
+      fork {
+        val concat100 = List.fill(batchSize)(100.toBigInt)
+        val env100 = PGTestPulse.concat(concat100, dataWidth)
+        val concat10 = List.fill(batchSize)(10.toBigInt)
+        val env10 = PGTestPulse.concat(concat10, dataWidth)
+        var rsp = env100
+        while (true) {
+          dut.io.memPort.rsp #= rsp
+          if (dut.io.memPort.cmd.payload.toBigInt == 0) {
+            rsp = env10
+          } else {
+            rsp = env100
+          }
+          cd.waitRisingEdge()
+        }
+        // val concat100 = List.fill(batchSize)(dut.io.cmd.amp.maxValue / 2 - 1)
+      }
       // dut.clockDomain.waitSampling(16)
       for (i <- 1 until 30) {
         sleep(2)
@@ -325,14 +337,15 @@ object PGCTest extends App {
         // println(s"    carrier in z: ${dut.carriers.map(_.io.in.z.toBigDecimal)}, ")
         // println(s"    carrier out x: ${dut.carriers.map(_.io.out.x.toBigDecimal)}, ")
         // println(s"    mul: ${dut.mul.map(_.toBigDecimal)}, ")
-        println(s"    state: ${dut.fsm.stateReg.toBigInt}, ")
+        print(s"    state: ${dut.fsm.stateReg.toBigInt}, ")
+        println(s"addr: ${dut.addr.toBigInt}, timer: ${dut.timer.toBigInt}")
         // println(s"    carrier: ${dut.io.carrier.payload.map(_.r.toDouble)}, ")
         // println(s"    phase: ${dut.phase.toBigInt}, ")
         // println(s"    phaseC: ${dut.phaseC.r.toDouble}, ")
         // println(s"    phaseCV: ${dut.cosSinRsp.valid.toBoolean}, ")
         // println(s"    phaseCD: ${dut.cosSinRsp.payload.r.toDouble}, ")
         // println(s"    carrierphase: ${dut.carrierMulPhase.map{_.r.toDouble}}, ")
-        println(s"    eaARegR: ${dut.eaARegR.map{_.toBigInt}}, ")
+        println(s"    eaARegR: ${dut.eaARegR.map { _.toBigInt }}, ")
         // println(s"    eacMReg: ${dut.eacMReg.map{_.r.toDouble}}, ")
         // println(s"    amp: ${dut.amp.toDouble}, ")
         // println(s"    cpa: ${dut.cpa.map(_.toDouble)}, ")
@@ -340,7 +353,7 @@ object PGCTest extends App {
         // println(s"    phase: ${dut.phaseC.r.toDouble}, ${dut.phaseC.i.toDouble},")
         // val t = dut.io.data.payload.map(_.toBooleans).toList
         // println(s"    output: ${t(0).toList}, ")
-        println(s"    output: ${(dut.io.data.payload.map(_.r.toDouble * (1<<14)))}, ")
+        println(s"    output: ${(dut.io.data.payload.map(_.r.toDouble * (1 << 14)))}, ")
         // print(s"${dut.phases.map(_.toLong)}, ")
         // print(s"timer: ${dut.timer.toBigInt}. ")
         // for(j <- 0 until batchSize) {
@@ -352,7 +365,6 @@ object PGCTest extends App {
       simSuccess()
     }
 }
-
 
 case class PulseQueue(puop: PulseOpParam, spec: PulseGeneratorSpec, depth: Int, delay: Int) extends Component {
   val io = new Bundle {
@@ -381,16 +393,16 @@ case class PulseQueue(puop: PulseOpParam, spec: PulseGeneratorSpec, depth: Int, 
 }
 
 case class PulseGeneratorPort(puop: PulseOpParam, spec: PulseGeneratorSpec) extends Bundle with IMasterSlave {
-    val time = UInt(puop.startWidth bits)
-    val event = Stream(PulseEvent(spec))
-    val data = Flow(PulseDataBundle(spec))
-    val carrier = Flow(CarrierBundle(spec.batchSize, spec.dataWidth))
+  val time = UInt(puop.startWidth bits)
+  val event = Stream(PulseEvent(spec))
+  val data = Flow(PulseDataBundle(spec))
+  val carrier = Flow(CarrierBundle(spec.batchSize, spec.dataWidth))
 
-    def asMaster(): Unit = {
-      out(time)
-      master(event, carrier)
-      slave(data)
-    }
+  def asMaster(): Unit = {
+    out(time)
+    master(event, carrier)
+    slave(data)
+  }
 }
 
 case class PulseGeneratorWithCarrierTop(puop: PulseOpParam, spec: PulseGeneratorSpec) extends Component {
@@ -491,20 +503,20 @@ object PGCTTest extends App {
       dut.io.event.valid #= true
       dut.io.event.cmd.addr #= 0
       dut.io.event.cmd.duration #= iters
-      dut.io.event.cmd.amp #= dut.io.event.cmd.amp.maxValue/2 - 1
+      dut.io.event.cmd.amp #= dut.io.event.cmd.amp.maxValue / 2 - 1
       dut.io.event.start #= 50
       // dut.io.cmd.freq #= 1 << (phaseWidth - 5)
       // dut.io.cmd.freq #= 0
       // dut.io.cmd.phase #= 0
-      dut.io.event.cmd.phase #= dut.io.event.cmd.phase.maxValue / 4 
+      dut.io.event.cmd.phase #= dut.io.event.cmd.phase.maxValue / 4
       dut.clockDomain.waitRisingEdge()
       dut.io.event.valid #= false
       // val concat100 = List.fill(batchSize)(100.toBigInt)
       val concat100 = List.fill(batchSize)(dut.io.event.cmd.amp.maxValue / 2 - 1)
       dut.memPort.rsp #= PGTestPulse.concat(concat100, dataWidth)
 
-      while(dut.io.time.toBigInt < 48) {
-      println(s"amp: ${dut.io.event.cmd.amp.toBigInt}")
+      while (dut.io.time.toBigInt < 48) {
+        println(s"amp: ${dut.io.event.cmd.amp.toBigInt}")
         cd.waitRisingEdge()
       }
       for (i <- 0 until 10) {
@@ -549,4 +561,39 @@ object GenPG extends App {
   ).generate(
     PulseGeneratorWithCarrierInput(pulseSpec)
   )
+}
+
+object TestFsmDelay extends App {
+  SimConfig.compile{
+    val dut = new Component {
+      val end = out UInt(2 bit)
+      end := 0
+      val fsm = new StateMachine {
+        val start = new State with EntryPoint {
+          whenIsActive{
+            end := U(1)
+            goto(wt)
+          }
+        }
+        val wt = new StateDelay(cyclesCount = 3) {
+          whenIsActive{
+            end := U(2)
+          }
+          whenCompleted{
+            end := U(3)
+            exit()
+          }
+        }
+      }
+    }
+    dut
+  }.doSim{ dut =>
+    val cd = dut.clockDomain
+    cd.forkStimulus(10)
+
+    for(i <- 0 until 10) {
+      println(s"${dut.end.toBigInt}")
+      cd.waitRisingEdge()
+    }
+  }
 }
