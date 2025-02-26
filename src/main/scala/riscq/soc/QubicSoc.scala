@@ -89,7 +89,6 @@ object QubicPlugins {
 
     val pcReset = 0x80000000L
     val plugins = ArrayBuffer[FiberPlugin]()
-    plugins += new riscq.misc.PipelineBuilderPlugin()
     val pp = new schedule.PipelinePlugin()
     plugins += pp
     plugins += new riscv.RiscvPlugin(xlen = 32)

@@ -28,7 +28,6 @@ object MinimalSocPlugins {
     enableBypass: Boolean = true
     ) = new Area {
     val plugins = ArrayBuffer[FiberPlugin]()
-    plugins += new riscq.misc.PipelineBuilderPlugin()
     plugins += new schedule.PipelinePlugin()
     plugins += new riscv.RiscvPlugin(xlen = 32)
     plugins += new schedule.ReschedulePlugin()

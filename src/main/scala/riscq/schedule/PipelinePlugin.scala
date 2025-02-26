@@ -8,7 +8,6 @@ import spinal.lib.misc.pipeline.{CtrlLink, CtrlLinkMirror, Link}
 import riscq.Global
 
 import scala.collection.mutable
-import riscq.misc.PipelineBuilderPlugin
 
 trait PipelineService{
   def getLinks() : Seq[Link]
@@ -34,9 +33,6 @@ class PipelinePlugin(val withFetchStage: Boolean = true, val withDecodeStage: Bo
 
   def up = fetch(0).up
   val logic = during setup new Area{
-    val pbp = host[PipelineBuilderPlugin]
-    val buildBefore = retains(pbp.elaborationLock)
-
     awaitBuild()
     elaborationLock.await()
     val feCtrls = feIdToCtrl.toList.sortBy(_._1).map(_._2)
@@ -50,7 +46,7 @@ class PipelinePlugin(val withFetchStage: Boolean = true, val withDecodeStage: Bo
     exSc.foreach{_.withoutCollapse()}
 
     val skidBufferNode = pipeline.Node()
-    val skidSc = List(pipeline.StageLink(deCtrls.last.down, skidBufferNode), pipeline.S2MLink(skidBufferNode, exCtrls.head.up))
+    val skidSc = List(pipeline.S2MLink(deCtrls.last.down, skidBufferNode), pipeline.StageLink(skidBufferNode, exCtrls.head.up))
 
     connectors ++= (feCtrls ++ deCtrls ++ exCtrls ++ sc ++ exSc ++ feDeSc ++ skidSc).toSeq
 
@@ -66,7 +62,11 @@ class PipelinePlugin(val withFetchStage: Boolean = true, val withDecodeStage: Bo
           ctrl.throwWhen(v, usingReady = false)
         )
       }
-    buildBefore.release()
+
+    
+    pipeline.Builder(getLinks)
+    val exFirstId = exIdToCtrl.toList.map{_._1}.min
+    (skidBufferNode.ctrl.valid zip rp.isFlushedAt(exFirstId)).foreach{case (v, f) => v.clearWhen(f)}
   }
 
   class Fetch(id : Int) extends CtrlLinkMirror(fetch(id))

@@ -7,7 +7,6 @@ import spinal.lib.misc.pipeline.CtrlLink
 import spinal.lib.misc.plugin.FiberPlugin
 import riscq.Global
 import riscq.fetch.PcService
-import riscq.misc.PipelineBuilderPlugin
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -34,8 +33,8 @@ class ReschedulePlugin extends FiberPlugin with ScheduleService {
 
   val logic = during build new Area{
     val ps = host[PcService]
-    val pbp = host[PipelineBuilderPlugin]
-    val retainer = retains(ps.elaborationLock, pbp.elaborationLock)
+    val pp = host[PipelinePlugin]
+    val retainer = retains(ps.elaborationLock, pp.elaborationLock)
     elaborationLock.await() 
     retainer.release()
   }

@@ -12,7 +12,6 @@ import riscq.fetch.FetchCachelessPlugin
 import riscq.execute._
 import riscq.execute.lsu._
 import riscq.fetch.{Fetch}
-import riscq.misc.{PipelineBuilderPlugin}
 // import riscq.prediction.{BtbPlugin, LearnCmd, LearnPlugin}
 import riscq.regfile.{RegFileWrite, RegFileWriter, RegFileWriterService, RegFilePlugin}
 import riscq.riscv.{Const, Riscv}
@@ -32,8 +31,7 @@ class WhiteboxerPlugin() extends FiberPlugin{
   // val logic = during setup new Logic()
   // class Logic extends Area{
   val logic = during setup new Area{
-    val pbp = host[PipelineBuilderPlugin]
-    val buildBefore = retains(pbp.elaborationLock)
+    val pp = host[PipelinePlugin]
 
     awaitBuild()
 
@@ -42,7 +40,14 @@ class WhiteboxerPlugin() extends FiberPlugin{
       buffered
     }
 
-    val pp = host[PipelinePlugin]
+    // val skid = new Area{
+    //   val valid = wrap(pp.skidNode.isValid)
+    //   val ready = wrap(pp.skidNode.isReady)
+    //   val pc = wrap(pp.skidNode(Fetch.WORD_PC))
+    //   val forgetOne = wrap(pp.skidNode.ctrl.forgetOne.get)
+    // }
+
+    pp.logic.await()
 
     val pcp = host[PcPlugin]
     val pc = new Area {
@@ -52,13 +57,28 @@ class WhiteboxerPlugin() extends FiberPlugin{
       val valid = wrap(pcp.logic.output.valid)
     }
 
+    val pcs = new Area {
+      val feCtrls = pp.feIdToCtrl.toList.sortBy(_._1).map(_._2)
+      val deCtrls = pp.deIdToCtrl.toList.sortBy(_._1).map(_._2)
+      val exCtrls = pp.exIdToCtrl.toList.sortBy(_._1).map(_._2)
+      val ctrls = feCtrls ++ deCtrls ++ exCtrls
+      val data = for(ctrl <- ctrls) yield new Area {
+        val ctrlName = ctrl.name
+        val forgetOne = wrap(ctrl.requests.forgetsOne.orR)
+        val valid = wrap(ctrl.isValid)
+        val ready = wrap(ctrl.up.isReady)
+        val pc = wrap(ctrl(Fetch.WORD_PC))
+      }
+    }
+
     val exInsts = new Area {
-      pp.logic.await()
       val exCtrls = pp.exIdToCtrl.toList.sortBy(_._1).map(_._2)
       val data = for(ctrl <- exCtrls) yield new Area {
+        val ctrlName = ctrl.name
         val inst = wrap(ctrl(Decode.INSTRUCTION))
         val valid = wrap(ctrl.isValid)
         val ready = wrap(ctrl.isReady)
+        val pc = wrap(ctrl(Fetch.WORD_PC))
       }
       // val ex_2 = wrap(pp.execute(-2)(Decode.INSTRUCTION))
       // val v_2 = wrap(pp.execute(-2).isValid)
@@ -235,11 +255,6 @@ class WhiteboxerPlugin() extends FiberPlugin{
       val READ_DATA1 = wrap(pp.execute(1)(p.logic.onJoin.READ_DATA))
       val READ_DATA2 = wrap(pp.execute(2)(p.logic.onJoin.READ_DATA))
     }
-
-
-
-
-    buildBefore.release()
   }
 }
 
