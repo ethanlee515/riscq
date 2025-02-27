@@ -1,8 +1,6 @@
-proc create_riscq_bd {} {
     set BD_NAME riscq_bd
-    global PROJ_NAME
-    create_bd_design -dir ./${PROJ_NAME}/bd $BD_NAME
-    # open_bd_design {./bd/zynq_bd.bd}
+    create_bd_design -dir ${BUILD_PREFIX}/${PROJ_NAME}/bd $BD_NAME
+    # open_bd_design {${BUILD_PREFIX}/bd/zynq_bd.bd}
     # set_property bitstream.config.unusedpin pulldown [current_design]
 
     set ZYNQ_PS_NAME zynq_ps
@@ -56,7 +54,7 @@ proc create_riscq_bd {} {
     connect_bd_intf_net -intf_net ${ZYNQ_PS_NAME}_M_AXI_HPM0_LPD [get_bd_intf_pins ${ZYNQ_PS}/M_AXI_HPM0_LPD] [get_bd_intf_pins ${AXI_CONNECT}/S00_AXI]
 
     # rfdc
-    source ../vivado-scripts/rfdc.tcl
+    source ${SCRIPT_PATH}/rfdc.tcl
 
     # connect clk
     connect_bd_net -net ${ZYNQ_PS_NAME}_pl_clk0 [get_bd_pins ${ZYNQ_PS}/pl_clk0] [get_bd_pins ${AXI_CONNECT}/aclk] [get_bd_pins ${ZYNQ_PS}/maxihpm0_lpd_aclk]
@@ -96,7 +94,6 @@ proc create_riscq_bd {} {
 
     # save_bd_design_as zynq_bdps
     close_bd_design $BD_NAME 
-    # generate_target all [get_files ./bd/${BD_NAME}/${BD_NAME}.bd]
+    # generate_target all [get_files ${BUILD_PREFIX}/bd/${BD_NAME}/${BD_NAME}.bd]
     generate_target all [get_files ${BD_NAME}.bd]
     set_property -name "top" -value "${BD_NAME}_wrapper" -objects [get_filesets sources_1]
-}

@@ -17,3 +17,4 @@ SPINAL_BENCH_WORKSPACE
 build
 .vscode
 *.tldr
+bench

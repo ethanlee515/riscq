@@ -45,3 +45,5 @@ Host vivado
 the default password for ssh login to the docker is `abc`
 
 - the home directory in the container is `/config`, which is bind to `/home/your-user-name/webtop-home` outside the container
+
+- if you want to build your own container, use `podman`. `podman` is compatible with docker, while does not require root privilege.

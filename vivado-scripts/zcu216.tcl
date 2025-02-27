@@ -3,31 +3,39 @@ global DSP_FREQ
 global PROJ_NAME
 global BOARD
 global TOP_MODULE
+global SOURCE_PATH
+global SCRIPT_PATH
+global BUILD_PREFIX
 set BOARD zcu216
 set DSP_PERIOD 2.000
 set DSP_FREQ 500000000
 set TOP_MODULE QubicSoc
+set SOURCE_PATH ../build/rtl
+set SCRIPT_PATH ./
+set BUILD_PREFIX "../build"
 
 proc create {SUFFIX} {
     puts ${SUFFIX}
     global PROJ_NAME
     global BOARD
+    global BUILD_PREFIX
     set PROJ_NAME riscq-${BOARD}-${SUFFIX}
-    create_project ${PROJ_NAME} ./${PROJ_NAME} -part xczu49dr-ffvf1760-2-e -force
+    create_project ${PROJ_NAME} ${BUILD_PREFIX}/${PROJ_NAME} -part xczu49dr-ffvf1760-2-e -force
 
+    global SOURCE_PATH
+    global SCRIPT_PATH
     global TOP_MODULE
-    add_files ./rtl/${TOP_MODULE}.v
-    add_files ./rtl/ClockInterface.v
-    add_files [glob ./rtl/*.bin]
+    add_files ${SOURCE_PATH}/${TOP_MODULE}.v
+    add_files ${SOURCE_PATH}/ClockInterface.v
+    add_files [glob ${SOURCE_PATH}/*.bin]
     # set_property file_type {Memory Initialization Files} [get_files [glob ./rtl/*.bin]]
-    set_property file_type {Memory File} [get_files [glob ./rtl/*.bin]]
+    set_property file_type {Memory File} [get_files [glob ${SOURCE_PATH}/*.bin]]
 
     global BOARD
-    source ../vivado-scripts/plip.tcl
-    source ../vivado-scripts/bd-${BOARD}.tcl
-    create_riscq_bd
+    source ${SCRIPT_PATH}/plip.tcl
+    source ${SCRIPT_PATH}/bd-${BOARD}.tcl
 
-    add_files -fileset constrs_1 ../vivado-scripts/constraints-zcu216.xdc
+    add_files -fileset constrs_1 ${SCRIPT_PATH}/constraints-zcu216.xdc
 }
 
 proc synth {} {
@@ -56,7 +64,8 @@ proc build {} {
     impl
 }
 
-proc create_and_build {SUFFIX} {
+# create and build
+proc cb {SUFFIX} {
     if {[catch {current_project} result]} {
         puts "no opened project"
     } else {
@@ -75,7 +84,11 @@ proc rebuild {} {
 proc reopen {SUFFIX} {
     global BOARD
     set PROJ_NAME riscq-${BOARD}-${SUFFIX}
-    open_project ./${PROJ_NAME}/${PROJ_NAME}.xpr
+    open_project ${BUILD_PREFIX}/${PROJ_NAME}/${PROJ_NAME}.xpr
 }
 
 # set_param general.maxThreads 1
+
+if { $argc > 0 } {
+    cb [lindex $argv 0]
+}
