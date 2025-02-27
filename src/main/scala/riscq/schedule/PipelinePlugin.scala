@@ -45,8 +45,8 @@ class PipelinePlugin(val withFetchStage: Boolean = true, val withDecodeStage: Bo
     val exSc = (for((from, to) <- (exCtrls, exCtrls.tail).zipped) yield new pipeline.StageLink(from.down, to.up)).toSeq
     exSc.foreach{_.withoutCollapse()}
 
-    val skidBufferNode = pipeline.Node()
-    val skidSc = List(pipeline.S2MLink(deCtrls.last.down, skidBufferNode), pipeline.StageLink(skidBufferNode, exCtrls.head.up))
+    val skidBuffer= pipeline.CtrlLink()
+    val skidSc = List(skidBuffer, pipeline.S2MLink(deCtrls.last.down, skidBuffer.up), pipeline.StageLink(skidBuffer.down, exCtrls.head.up))
 
     connectors ++= (feCtrls ++ deCtrls ++ exCtrls ++ sc ++ exSc ++ feDeSc ++ skidSc).toSeq
 
@@ -63,10 +63,10 @@ class PipelinePlugin(val withFetchStage: Boolean = true, val withDecodeStage: Bo
         )
       }
 
+    val deLastId = deIdToCtrl.toList.map{_._1}.max
+    skidBuffer.throwWhen(rp.isFlushedAt(deLastId).get, usingReady = false)
     
     pipeline.Builder(getLinks)
-    val exFirstId = exIdToCtrl.toList.map{_._1}.min
-    (skidBufferNode.ctrl.valid zip rp.isFlushedAt(exFirstId)).foreach{case (v, f) => v.clearWhen(f)}
   }
 
   class Fetch(id : Int) extends CtrlLinkMirror(fetch(id))
