@@ -21,7 +21,7 @@ source ~/.bashrc
 mkdir webtop-home
 cd webtop-home
 echo "export XILINXD_LICENSE_FILE=/opt/Xilinx/Xilinx.lic" >> .bashrc
-echo "export LD_PRELOAD="/lib/x86_64-linux-gnu/libudev.so.1 /lib/x86_64-linux-gnu/libselinux.so.1 /lib/x86_64-linux-gnu/libz.so.1 /lib/x86_64-linux-gnu/libgdk-x11-2.0.so.0"" >> .bashrc
+echo 'export LD_PRELOAD="/lib/x86_64-linux-gnu/libudev.so.1 /lib/x86_64-linux-gnu/libselinux.so.1 /lib/x86_64-linux-gnu/libz.so.1 /lib/x86_64-linux-gnu/libgdk-x11-2.0.so.0"' >> .bashrc
 echo "export PATH="/opt/bin:/opt/riscv/bin:/opt/Xilinx/Vivado/2024.2/bin/:$HOME/.local/bin:$PATH"" >> .bashrc
 echo "source ~/.bashrc" >> .profile
 ```
