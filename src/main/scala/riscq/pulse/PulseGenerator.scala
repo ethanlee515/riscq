@@ -20,8 +20,6 @@ case class PulseGeneratorSpec(
     phaseWidth: Int = 0,
     freqWidth: Int = 0,
     ampWidth: Int = 0,
-    carrierDelay: Int = 2,
-    defaultData: Int = 0,
     correctGain: Boolean = false
 ) {
   val addrWidth = log2Up(bufferDepth)
@@ -231,8 +229,6 @@ object PGCTest extends App {
     phaseWidth = phaseWidth,
     freqWidth = phaseWidth,
     ampWidth = 16,
-    carrierDelay = (dataWidth max phaseWidth) + 1,
-    defaultData = 0
   )
   val carrierSpec = CarrierGeneratorSpec(
     batchSize = batchSize,
@@ -445,8 +441,6 @@ object PGCTTest extends App {
     phaseWidth = phaseWidth,
     freqWidth = phaseWidth,
     ampWidth = 16,
-    carrierDelay = (dataWidth max phaseWidth) + 1,
-    defaultData = 0
   )
   val puop = PulseOpParam(
     addrWidth = 12,
@@ -553,7 +547,6 @@ object GenPG extends App {
     phaseWidth = 16,
     freqWidth = 16,
     ampWidth = 16,
-    carrierDelay = 4
   )
   SpinalConfig(
     mode = Verilog,
