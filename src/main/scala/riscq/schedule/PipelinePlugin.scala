@@ -15,6 +15,8 @@ trait PipelineService{
 
 class PipelinePlugin(val withFetchStage: Boolean = true, val withDecodeStage: Boolean = true) extends FiberPlugin with PipelineService{
   val elaborationLock = Retainer()
+  val pipelineBuildLock = Retainer()
+  val pipelinePrepareLock = Retainer()
 
   def feGetAge(id: Int ) = id * Ages.STAGE
   def deGetAge(id: Int ) = id * Ages.STAGE + 100
@@ -33,6 +35,8 @@ class PipelinePlugin(val withFetchStage: Boolean = true, val withDecodeStage: Bo
 
   def up = fetch(0).up
   val logic = during setup new Area{
+    val prepareLock = retains(pipelinePrepareLock)
+
     awaitBuild()
     elaborationLock.await()
     val feCtrls = feIdToCtrl.toList.sortBy(_._1).map(_._2)
@@ -66,6 +70,8 @@ class PipelinePlugin(val withFetchStage: Boolean = true, val withDecodeStage: Bo
     val deLastId = deIdToCtrl.toList.map{_._1}.max
     skidBuffer.throwWhen(rp.isFlushedAt(deLastId).get, usingReady = false)
     
+    prepareLock.release()
+    pipelineBuildLock.await()
     pipeline.Builder(getLinks)
   }
 

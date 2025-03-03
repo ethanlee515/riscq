@@ -70,7 +70,7 @@ case class PulseGeneratorWithCarrierInput(spec: PulseGeneratorSpec) extends Comp
   val cosSinParam = TableAndDspParam(spec.freqWidth)
   val cosSin = TableAndDsp(cosSinParam)
   cosSin.io.cmd.valid := False
-  val cosSinRsp = cosSin.io.rsp.simPublic
+  val cosSinRsp = cosSin.io.rsp
 
   val phase = Reg(io.cmd.phase)
   phase.addAttribute("EQUIVALENT_REGISTER_REMOVAL", "NO")
@@ -148,13 +148,13 @@ case class PulseGeneratorWithCarrierInput(spec: PulseGeneratorSpec) extends Comp
         goto(warmMul)
       }
     }
-    val warmMul = new StateDelay(cyclesCount = 1) {
+    val warmMul = new StateDelay(cyclesCount = 2) {
       whenCompleted {
         goto(waitMul)
         addrIncr := True
       }
     }
-    val waitMul = new StateDelay(cyclesCount = 10) { // 2
+    val waitMul = new StateDelay(cyclesCount = 9) { // 2
       whenCompleted {
         goto(running)
       }

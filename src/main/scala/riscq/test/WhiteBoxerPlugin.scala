@@ -32,6 +32,7 @@ class WhiteboxerPlugin() extends FiberPlugin{
   // class Logic extends Area{
   val logic = during setup new Area{
     val pp = host[PipelinePlugin]
+    val buildBefore = retains(pp.pipelineBuildLock)
 
     awaitBuild()
 
@@ -47,7 +48,7 @@ class WhiteboxerPlugin() extends FiberPlugin{
     //   val forgetOne = wrap(pp.skidNode.ctrl.forgetOne.get)
     // }
 
-    pp.logic.await()
+    pp.pipelinePrepareLock.await()
 
     val pcp = host[PcPlugin]
     val pc = new Area {
@@ -150,9 +151,9 @@ class WhiteboxerPlugin() extends FiberPlugin{
       // pg.pg.memPort.enable := True
       // pgp.get.logic.memPort.write := False
       // pgp.get.logic.memPort.enable := True
-      val pgdata = pg.data.simPublic
-      val pgcarrier = pg.carrier.simPublic
-      val pgevent = pg.event.simPublic
+      val pgdata = wrap(pg.data)
+      val pgcarrier = wrap(pg.carrier)
+      val pgevent = wrap(pg.event)
       // val pgtimer = pg.timer.simPublic
       // val phaseR = wrap(pg.pg.phaseC.r)
     })
@@ -255,6 +256,7 @@ class WhiteboxerPlugin() extends FiberPlugin{
       val READ_DATA1 = wrap(pp.execute(1)(p.logic.onJoin.READ_DATA))
       val READ_DATA2 = wrap(pp.execute(2)(p.logic.onJoin.READ_DATA))
     }
+    buildBefore.release()
   }
 }
 

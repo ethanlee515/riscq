@@ -68,7 +68,7 @@ case class CarrierGenerator(spec: CarrierGeneratorSpec) extends Component {
   io.cmd.ready := False
   io.carrier.valid := False
   cosSin.io.cmd.valid := False
-  val cosSinRsp = cosSin.io.rsp.simPublic()
+  val cosSinRsp = cosSin.io.rsp
   val compMul = List.fill(spec.batchSize)(ComplexMul(spec.freqWidth))
   val compMulDelay = List.fill(spec.batchSize)(Complex(spec.freqWidth))
 
