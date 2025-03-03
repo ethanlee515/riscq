@@ -95,7 +95,7 @@ class RvAssembler(wordWidth: Int) {
   def sw(rs2: Int, imm: Int, rs1: Int): String = typeS("0100011", "010", imm = imm, rs1 = rs1, rs2 = rs2)
 }
 
-object Qubic {
+class QubicAssembler {
   def setTime(resetTime: Int) = {
     var res = ""
     res += ByteHelper.intToBinStr(resetTime, 32)
@@ -139,7 +139,7 @@ object Qubic {
     res += "0" * zeroLength + opcode
     res
   }
-  def read(id: Int, time: Int, start: Int = 0): String = {
+  def readout(id: Int, time: Int, start: Int = 0): String = {
     val startStr = ByteHelper.intToBinStr(start, 32)
     val timeStr = ByteHelper.intToBinStr(time, 12)
     var idStr = ByteHelper.intToBinStr(id, 5)
@@ -149,7 +149,7 @@ object Qubic {
     val res = startStr + "0"*zeroLength + timeStr + idStr + funct3 + "00000" + opcode
     res
   }
-  def readr(id: Int, rd: Int): String = {
+  def rowbr(id: Int, rd: Int): String = {
     var idStr = ByteHelper.intToBinStr(id, 5)
     val rdStr = ByteHelper.intToBinStr(rd, 5)
     val opcode = "1111011"
@@ -158,7 +158,7 @@ object Qubic {
     val res = "0"*zeroLength + idStr + funct3 + rdStr + opcode
     res
   }
-  def readi(id: Int, rd: Int): String = {
+  def rowbi(id: Int, rd: Int): String = {
     var idStr = ByteHelper.intToBinStr(id, 5)
     val rdStr = ByteHelper.intToBinStr(rd, 5)
     val opcode = "1111011"

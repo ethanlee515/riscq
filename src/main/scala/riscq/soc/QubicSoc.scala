@@ -201,7 +201,6 @@ case class QubicSoc(
   val rbLogic = Fiber build new ResetArea(riscqRst, false) {
     val addr = Reg(readoutBuffer.fastPort.address) init 0
     val valid = rbp.logic.outData.valid
-    valid.simPublic()
     when(valid) {
       addr := addr + 1
     }
@@ -222,7 +221,7 @@ case class QubicSoc(
 
   // instruction memory for qubic
   val pcOffset = 0x80000000L
-  val pcAxiOffset = 0x01000000L
+  val iMemBusOffset = 0x01000000L
   val dMemOffset = 0x08000000L
   val memBits = 128
   val iMem = DualClockRam(width = 128, depth = 1024, slowCd = cd100m, fastCd = cd500m)
@@ -274,14 +273,14 @@ case class QubicSoc(
     val pulseMemFibers = for (i <- 0 until qubitNum * 2) yield new Area {
       val pulseMemFiber = TileLinkMemReadWriteFiber(pulseMems(i).slowPort)
       val offset = pulseOffset + (1 << 20) * i
-      println(s"!!!!!! pulseoffset: ${BigInt(offset).toString(16)}")
+      // println(s"!!!!!! pulseoffset: ${BigInt(offset).toString(16)}")
       pulseMemFiber.up at offset of pulseMemBus
       pulseMemFiber.up.setUpConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
     }
 
     val iMemTlFiber = TileLinkMemReadWriteFiber(iMem.slowPort)
     val iMemWa = WidthAdapter()
-    iMemWa.up at pcAxiOffset of shareBus
+    iMemWa.up at iMemBusOffset of shareBus
     iMemTlFiber.up at 0 of iMemWa.down
     iMemTlFiber.up.setUpConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
 

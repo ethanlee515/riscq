@@ -1,14 +1,184 @@
-// package riscq.tester
+package riscq.tester.qubic
 
-// import spinal.core.sim._
-// import spinal.core._
-// import spinal.lib.bus.tilelink.sim._
-// import spinal.lib.bus.tilelink._
-// import riscq._
-// import riscq.soc.QubicTileLinkSoc
-// import riscq.soc.QubicSoc
+import spinal.core.sim._
+import spinal.core._
+import spinal.lib.bus.tilelink.sim._
+import spinal.lib.bus.tilelink._
+import riscq._
+import riscq.soc.QubicSoc
+import spinal.lib.bus.amba4.axi.sim.Axi4Master
+import riscq.tester.RvAssembler
+import riscq.tester.QubicAssembler
+import riscq.tester.ByteHelper
+import riscq.soc.QubicPlugins
 
+class Driver(dut: QubicSoc) {
+  implicit val idAllocator = new IdAllocator(DebugId.width)
+  implicit val idCallback = new IdCallback
+  val cd = dut.clockDomain
+  val cd100m = dut.cd100m
 
+  val wb = dut.core.host[test.WhiteboxerPlugin].logic
+  val puop = QubicPlugins.puop
+
+  var axi4Driver: Axi4Master = null
+  var tlDriver: MasterAgent = null
+
+  def init() = {
+    axi4Driver = Axi4Master(dut.axi, cd100m)
+    axi4Driver.reset()
+    tlDriver = new MasterAgent(dut.tlBus.node.bus, cd100m)
+    cd.forkStimulus(10)
+    cd100m.forkStimulus(50)
+
+    cd.assertReset()
+    cd100m.assertReset()
+    cd100m.waitRisingEdge(0)
+    cd.deassertReset()
+    cd100m.deassertReset()
+  }
+
+  def rstUp() = {
+    cd.assertReset()
+  }
+
+  def rstDown() = {
+    cd.deassertReset()
+  }
+
+  def loadIMem(addr: Long, insts: Seq[String]) = {
+    var writeAddr = addr
+    for (inst <- insts) {
+      val instInt = BigInt(inst, 2)
+      dut.iMem.mem.setBigInt(writeAddr, instInt)
+      writeAddr += 1
+    }
+  }
+
+  def getDMem(addr: Long): BigInt = {
+    return dut.dMem.mem.getBigInt(addr)
+  }
+
+  def tick(t: Int = 1) = {
+    cd.waitRisingEdge(t)
+  }
+
+  def logRf() = {
+    val n = wb.rf.mem.wordCount
+    val res = (0 until n).map { x => wb.rf.mem.getBigInt(x).toString() }.toList
+    println(s"rf: ${res}")
+  }
+
+  def logPc() = {
+    val pc = wb.pc.output.toBigInt.toString(16)
+    val valid = wb.pc.valid.toBoolean
+    println(s"pc: ${pc}, v: ${valid}")
+  }
+
+  def logPcs() = {
+    for (data <- wb.pcs.data) {
+      println(
+        s"pc ${data.pc.toBigInt.toString(16)}, v: ${data.valid.toBoolean}, r: ${data.ready.toBoolean}, f: ${data.forgetOne.toBoolean}, ${data.ctrlName}"
+      )
+    }
+  }
+
+  def logExInsts() = {
+    for (data <- wb.exInsts.data) {
+      println(s"pc ${data.pc.toBigInt.toString(16)}, ${data.inst.toBigInt
+          .toString(2)}, v: ${data.valid.toBoolean}, r: ${data.ready.toBoolean}, ${data.ctrlName}")
+    }
+  }
+
+  def logSrc() = {
+    val src1 = wb.src.src1.toBigInt
+    val src1k = wb.src.src1k.toBigInt
+    val src2 = wb.src.src2.toBigInt
+    val src2k = wb.src.src2k.toBigInt
+    println(s"src1: $src1, src1k: $src1k, src2: $src2, src2k: $src2k")
+  }
+
+  def logDac(n: Int) = {
+    val dac = wb.da.dac(n)
+    val pulse = dac.payload.map { _.r.toDouble * (1 << 14) }.toList
+    println(s"${pulse}")
+  }
+
+  def logTime() = {
+    val time = wb.timer.time.toBigInt
+    println(s"time: $time")
+  }
+}
+
+object QubicTestConfig {
+  val simConfig = SimConfig.addSimulatorFlag("-Wno-MULTIDRIVEN") // .withFstWave.withTimeSpec(1 ns, 1 ps)
+}
+
+// println(s"${dut.cd100mLogic.iMemTlFiber.up.bus.a.valid.toBoolean}")
+object TestQubicPulse extends App {
+  import QubicTestConfig._
+  simConfig
+    .compile(
+      QubicSoc(
+        qubitNum = 8,
+        withVivado = false,
+        withCocotb = false,
+        withWhitebox = true,
+        withTest = true
+      )
+    )
+    .doSim { dut =>
+      val driver = new Driver(dut)
+      import driver._
+      val rvAsm = new RvAssembler(128)
+      import rvAsm._
+      val qbAsm = new QubicAssembler()
+      import qbAsm._
+
+      init()
+
+      val batchSize = 16
+      val dataWidth = 16
+      for (i <- 0 until 100) {
+        val dt = if (i == 0) BigInt(10) else BigInt(1000)
+        val batch = List.fill(batchSize)(dt)
+        val batchData = riscq.pulse.PGTestPulse.concat(batch, dataWidth)
+        val dataStr = batch.map { x => ByteHelper.intToBinStr(x, dataWidth) }.reduce { _ ++ _ }
+        tlDriver.putFullData(0, dut.pulseOffset + i * batchSize * dataWidth / 8, ByteHelper.fromBinStr(dataStr).reverse)
+      }
+      cd100m.waitRisingEdge()
+
+      val startTime = 40
+      val insts = List(
+        setTime(0), // 0
+        carrier(1 << (16 - 5), 0), // 1
+        pulse(
+          puop,
+          start = startTime,
+          addr = 0,
+          duration = 4,
+          phase = (1 << (puop.phaseWidth - 7)),
+          freq = 0,
+          amp = (1 << (puop.ampWidth - 1)) - 1
+        ), // 2
+        beq(0, 0, 0) // 3
+      )
+      loadIMem(0, insts)
+
+      dut.riscq_rst #= true
+      tick()
+      dut.riscq_rst #= false
+
+      tick(startTime+8)
+      for (i <- 0 until 6) {
+        logTime()
+        logPcs()
+        logDac(0)
+        println("")
+        tick()
+      }
+    }
+}
 // object QubicTest extends App {
 //   implicit val idAllocator = new IdAllocator(DebugId.width)
 //   implicit val idCallback = new IdCallback
@@ -69,7 +239,7 @@
 //       for(i <- 0 until 20) {
 //         sleep(1)
 //         println(s"pc: state: ${wbp.pc.state.toBigInt.toString(16)}, output: ${wbp.pc.output.toBigInt.toString(16)}, r: ${wbp.pc.ready.toBoolean}, v: ${wbp.pc.valid.toBoolean}")
-//         println(s"fetch pc0:${wbp.fetch.pc0.toBigInt.toString(16)}, pc1:${wbp.fetch.pc1.toBigInt.toString(16)}, pc2:${wbp.fetch.pc2.toBigInt.toString(16)}, ${wbp.fetch.inflight.map(_.toBoolean)}") 
+//         println(s"fetch pc0:${wbp.fetch.pc0.toBigInt.toString(16)}, pc1:${wbp.fetch.pc1.toBigInt.toString(16)}, pc2:${wbp.fetch.pc2.toBigInt.toString(16)}, ${wbp.fetch.inflight.map(_.toBoolean)}")
 //         println(s"inst: ${wbp.decode.inst.toBigInt.toString(2)}")
 //         println(s"time: ${simTime()}, timer: ${wbp.timer.time.toLong}, SEL: ${wbp.timer.SEL.toBoolean}")
 //         // // println(s"pulse data: ${wbp.pg.get.pgdata.payload.map(_.toLong)}")
@@ -133,7 +303,7 @@
 
 //       for(i <- 0 until 10) {
 //         sleep(1)
-//         println(s"fetch pc0:${wbp.fetch.pc0.toBigInt.toString(16)}, pc1:${wbp.fetch.pc1.toBigInt.toString(16)}, pc2:${wbp.fetch.pc2.toBigInt.toString(16)}, ${wbp.fetch.inflight.map(_.toBoolean)}") 
+//         println(s"fetch pc0:${wbp.fetch.pc0.toBigInt.toString(16)}, pc1:${wbp.fetch.pc1.toBigInt.toString(16)}, pc2:${wbp.fetch.pc2.toBigInt.toString(16)}, ${wbp.fetch.inflight.map(_.toBoolean)}")
 //         println(s"rs1: ${wbp.rs.rs1.toBigInt}, ${wbp.rs.rs1e.toBoolean}, ${wbp.rs.rs1p.toBigInt}, ${wbp.rs.rs1i.toBigInt}")
 //         println(s"rs2: ${wbp.rs.rs2.toBigInt}, ${wbp.rs.rs2e.toBoolean}, ${wbp.rs.rs2p.toBigInt}, ${wbp.rs.rs2i.toBigInt}")
 //         // println(s"rsp: ${wbp.rs.rsp(0).address.toBigInt},${wbp.rs.rsp(0).data.toBigInt},${wbp.rs.rsp(0).valid.toBoolean}, ")
@@ -199,7 +369,7 @@
 
 //       for(i <- 0 until 10) {
 //         sleep(1)
-//         println(s"fetch pc0:${wbp.fetch.pc0.toBigInt.toString(16)}, pc1:${wbp.fetch.pc1.toBigInt.toString(16)}, pc2:${wbp.fetch.pc2.toBigInt.toString(16)}, ${wbp.fetch.inflight.map(_.toBoolean)}") 
+//         println(s"fetch pc0:${wbp.fetch.pc0.toBigInt.toString(16)}, pc1:${wbp.fetch.pc1.toBigInt.toString(16)}, pc2:${wbp.fetch.pc2.toBigInt.toString(16)}, ${wbp.fetch.inflight.map(_.toBoolean)}")
 //         println(s"rs1: ${wbp.rs.rs1.toBigInt}, ${wbp.rs.rs1e.toBoolean}, ${wbp.rs.rs1p.toBigInt}, ${wbp.rs.rs1i.toBigInt}")
 //         println(s"rs2: ${wbp.rs.rs2.toBigInt}, ${wbp.rs.rs2e.toBoolean}, ${wbp.rs.rs2p.toBigInt}, ${wbp.rs.rs2i.toBigInt}")
 //         // println(s"rsp: ${wbp.rs.rsp(0).address.toBigInt},${wbp.rs.rsp(0).data.toBigInt},${wbp.rs.rsp(0).valid.toBoolean}, ")
@@ -280,11 +450,10 @@
 //       dut.riscq_rst #= false
 //       // cd.waitRisingEdge(7)
 
-
 //       println(s"${dut.iMem.mem.getBigInt(0).toString(16)}")
 //       for(i <- 0 until 40) {
 //         sleep(2)
-//         println(s"fetch pc0:${wbp.fetch.pc0.toBigInt.toString(16)}, pc1:${wbp.fetch.pc1.toBigInt.toString(16)}, pc2:${wbp.fetch.pc2.toBigInt.toString(16)}, ${wbp.fetch.inflight.map(_.toBoolean)}") 
+//         println(s"fetch pc0:${wbp.fetch.pc0.toBigInt.toString(16)}, pc1:${wbp.fetch.pc1.toBigInt.toString(16)}, pc2:${wbp.fetch.pc2.toBigInt.toString(16)}, ${wbp.fetch.inflight.map(_.toBoolean)}")
 //         println(s"inst-2: ${wbp.insts.ex_2.toBigInt.toString(2)}, ${wbp.insts.v_2.toBoolean}, ${wbp.insts.r_2.toBoolean}")
 //         println(s"inst-1: ${wbp.insts.ex_1.toBigInt.toString(2)}, ${wbp.insts.v_1.toBoolean}, ${wbp.insts.r_1.toBoolean}")
 //         println(s"inst0: ${wbp.insts.ex0.toBigInt.toString(2)}, ${wbp.insts.v0.toBoolean}, ${wbp.insts.r0.toBoolean}")
@@ -355,7 +524,7 @@
 
 //       for(i <- 0 until 20) {
 //         sleep(1)
-//         println(s"fetch pc0:${wbp.fetch.pc0.toBigInt.toString(16)}, pc1:${wbp.fetch.pc1.toBigInt.toString(16)}, pc2:${wbp.fetch.pc2.toBigInt.toString(16)}, ${wbp.fetch.inflight.map(_.toBoolean)}") 
+//         println(s"fetch pc0:${wbp.fetch.pc0.toBigInt.toString(16)}, pc1:${wbp.fetch.pc1.toBigInt.toString(16)}, pc2:${wbp.fetch.pc2.toBigInt.toString(16)}, ${wbp.fetch.inflight.map(_.toBoolean)}")
 //         println(s"rs1: ${wbp.rs.rs1.toBigInt}, ${wbp.rs.rs1e.toBoolean}, ${wbp.rs.rs1p.toBigInt}, ${wbp.rs.rs1i.toBigInt}")
 //         println(s"rs2: ${wbp.rs.rs2.toBigInt}, ${wbp.rs.rs2e.toBoolean}, ${wbp.rs.rs2p.toBigInt}, ${wbp.rs.rs2i.toBigInt}")
 //         // println(s"rsp: ${wbp.rs.rsp(0).address.toBigInt},${wbp.rs.rsp(0).data.toBigInt},${wbp.rs.rsp(0).valid.toBoolean}, ")
@@ -447,7 +616,7 @@
 //         sleep(3)
 //         // println(s"br: doit:${wbp.branch.doIt.toBoolean},sel:${wbp.branch.sel.toBoolean},inst:${wbp.branch.inst.toBigInt.toString(2)},v:${wbp.branch.valid.toBoolean},pc:${wbp.branch.pc.toBigInt.toString(16)}")
 //         println(s"pc: s:${wbp.pc.state.toBigInt.toString(16)}, o:${wbp.pc.output.toBigInt.toString(16)}, v:${wbp.pc.valid.toBoolean}")
-//         // println(s"fetch pc0:${wbp.fetch.pc0.toBigInt.toString(16)}, pc1:${wbp.fetch.pc1.toBigInt.toString(16)}, pc2:${wbp.fetch.pc2.toBigInt.toString(16)}, word1:${wbp.fetch.word1.toBigInt}, ${wbp.fetch.inflight.map(_.toBoolean)}") 
+//         // println(s"fetch pc0:${wbp.fetch.pc0.toBigInt.toString(16)}, pc1:${wbp.fetch.pc1.toBigInt.toString(16)}, pc2:${wbp.fetch.pc2.toBigInt.toString(16)}, word1:${wbp.fetch.word1.toBigInt}, ${wbp.fetch.inflight.map(_.toBoolean)}")
 //         println(s"inst: ${wbp.decode.inst.toBigInt.toString(2)}")
 //         // println(s"carrier data: ${wbp.carrier.data.payload.map(_.r.toDouble)}")
 //         // println(s"pg carrier: ${wbp.pg.get.pgcarrier.payload.map(_.r.toDouble)}")
@@ -595,7 +764,7 @@
 //         println(s"inst2: ${wbp.insts.ex2.toBigInt.toString(2)}, ${wbp.insts.v2.toBoolean}, ${wbp.insts.r2.toBoolean}, b: ${wbp.wbp.DATA2.toBigInt}, l: ${wbp.lsu.READ_DATA2.toBigInt}")
 //         println(s"inst3: ${wbp.insts.ex3.toBigInt.toString(2)}, ${wbp.insts.v3.toBoolean}, ${wbp.insts.r3.toBoolean}")
 //         println(s"br : ${wbp.branch.doIt.toBoolean}")
-//         println(s"fetch pc0:${wbp.fetch.pc0.toBigInt.toString(16)}, pc1:${wbp.fetch.pc1.toBigInt.toString(16)}, pc2:${wbp.fetch.pc2.toBigInt.toString(16)}, ${wbp.fetch.inflight.map(_.toBoolean)}") 
+//         println(s"fetch pc0:${wbp.fetch.pc0.toBigInt.toString(16)}, pc1:${wbp.fetch.pc1.toBigInt.toString(16)}, pc2:${wbp.fetch.pc2.toBigInt.toString(16)}, ${wbp.fetch.inflight.map(_.toBoolean)}")
 //         // println(s"carrier data: ${wbp.carrier.data.payload.map(_.r.toDouble * (1 << 14))}")
 //         // println(s"adc data: ${dut.test_adc(0).map(_.r.toDouble * (1 << 14))}")
 //         println(s"carrier data: ${wbp.readout.carrier.map(_.r.toDouble * (1 << 14))}")
