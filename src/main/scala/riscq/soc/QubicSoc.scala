@@ -18,6 +18,7 @@ import riscq.memory.DualClockRam
 import riscq.misc.TileLinkMemReadWriteFiber
 import spinal.lib.eda.bench.Bench
 import riscq.misc.XilinxRfsocTarget
+import riscq.execute.TimerPlugin
 
 object QubicPlugins {
   val puop = execute.PulseOpParam(
@@ -82,10 +83,6 @@ object QubicPlugins {
     val cgSpecs = List.fill(qubitNum)(qubitDriveCgSpec) ++
       List.fill(qubitNum)(readoutDriveCgSpec) ++
       List.fill(qubitNum)(readoutDemodCgSpec)
-    // val pgSpecs = List.fill(qubitNum)(qubitDrivePgSpec) ++ List.fill(1)(testAdcPgSpec) ++ List.fill(1)(readoutDrivePgSpec)
-    // val cgSpecs = List.fill(qubitNum)(qubitDriveCgSpec) ++
-    //   List.fill(1)(readoutDemodCgSpec) ++ List.fill(1)(readoutDriveCgSpec) ++
-    //   List.fill(qubitNum)(readoutDemodCgSpec)
 
     val pcReset = 0x80000000L
     val plugins = ArrayBuffer[FiberPlugin]()
@@ -122,13 +119,6 @@ object QubicPlugins {
     plugins += new execute.CarrierPlugin(cgSpecs)
     val pgp = new execute.PulseGeneratorPlugin(puop, pgSpecs)
     plugins += pgp
-    plugins += new execute.DacAdcPlugin(
-      dacBatchSize = 16,
-      adcBatchSize = 4,
-      dataWidth = 16,
-      dacNum = qubitNum * 2,
-      adcNum = qubitNum
-    )
     plugins += new execute.ReadoutPlugin(batchSize = 4, carrierWidth = 16, num = qubitNum)
     plugins += new execute.lsu.LsuCachelessPlugin()
     // plugins += new test.WhiteboxerPlugin()
@@ -292,8 +282,32 @@ case class QubicSoc(
     val riscq = RiscQ(plugins)
   }
 
+  // riscv core
   val core = riscqArea.riscq
 
+  // pulse generator and carrier generator
+  val pgCgArea = new ResetArea(riscqRst, false) {
+    val pgs = pluginsArea.pgSpecs.map(spec => pulse.PulseGeneratorWithCarrierTop(QubicPlugins.puop, spec))
+    pgs.foreach{_.addAttribute("KEEP_HIERARCHY", "TRUE")}
+    val cgs = pluginsArea.cgSpecs.map(spec => pulse.CarrierGenerator(spec))
+  }
+  val pgs = pgCgArea.pgs
+  val cgs = pgCgArea.cgs
+
+  (pgs zip cgs).foreach{case (pg, cg) => pg.io.carrier := cg.io.carrier}
+
+  (pgs zip pulseMems).foreach {
+    case (x, y) => {
+      y.fastPort.enable := True
+      y.fastPort.write := False
+      y.fastPort.mask.setAllTo(False)
+      y.fastPort.wdata.setAllTo(False)
+      y.fastPort.address := x.memPort.cmd.payload
+      x.memPort.rsp := RegNext(y.fastPort.rdata)
+    }
+  }
+
+  // dac and adc ports
   val dac = List.fill(qubitNum * 2)(master port Stream(Bits(16 * 16 bits)))
   dac.zipWithIndex.foreach { case (d, id) =>
     riscq.misc.Axi4StreamVivadoHelper.addStreamInference(d, s"DAC${id}_AXIS")
@@ -303,56 +317,53 @@ case class QubicSoc(
     riscq.misc.Axi4StreamVivadoHelper.addStreamInference(d, s"ADC${id}_AXIS")
     d.ready := True
   }
-  val pgCgArea = new ResetArea(riscqRst, false) {
-    val pgs = pluginsArea.pgSpecs.map(spec => pulse.PulseGeneratorWithCarrierTop(QubicPlugins.puop, spec))
-    pgs.foreach{_.addAttribute("KEEP_HIERARCHY", "TRUE")}
-    val cgs = pluginsArea.cgSpecs.map(spec => pulse.CarrierGenerator(spec))
+
+  val test_adc = withTest generate (in port Vec.fill(qubitNum * 2)(pulse.ComplexBatch(batchSize = 4, dataWidth = 16)))
+
+  // pulse generator output
+  for((o, pg) <- (dac zip pgs)) {
+    o.payload := pg.io.data.payload.map(_.r).asBits()
+    o.valid := True
   }
-  val pgs = pgCgArea.pgs
-  val cgs = pgCgArea.cgs
 
-  val test_adc = withTest generate (in port Vec.fill(qubitNum * 2)(execute.DacAdcBundle(batchSize = 4, dataWidth = 16)))
-
-  val ioLogic = Fiber build new Area {
+  // readout input
+  val readoutInputLogic = Fiber build new Area {
     plugins.foreach {
-      case p: execute.PulseGeneratorPlugin => {
-        (pgs zip pulseMems).foreach {
-          case (x, y) => {
-            y.fastPort.enable := True
-            y.fastPort.write := False
-            y.fastPort.mask.setAllTo(False)
-            y.fastPort.wdata.setAllTo(False)
-            y.fastPort.address := x.memPort.cmd.payload
-            x.memPort.rsp := y.fastPort.rdata
-          }
+      case p: execute.ReadoutPlugin => {
+        for(i <- 0 until p.num) {
+          p.logic.carriers(i) := cgs(2 * p.num + i).io.carrier.payload
         }
-        (pgs zip p.logic.pgPorts).foreach { case (x, y) => x.io <> y }
-      }
-      case p: execute.CarrierPlugin => {
-        (cgs zip p.logic.cgPorts).foreach { case (x, y) => x.io <> y }
-      }
-      case p: execute.DacAdcPlugin => {
-        (dac, p.logic.dac).zipped.foreach {
-          case (outs, ins) => {
-            val dacIn = ins.payload.map(_.r)
-            outs.payload := dacIn.asBits()
-            outs.valid := ins.valid
-          }
-        }
-
-        if (!withTest) {
-          (p.logic.adc, adc).zipped.foreach {
-            case (outs, ins) => {
-              (outs.payload, ins.payload.subdivideIn(16 bits)).zipped.foreach { case (o, i) => o.r.assignFromBits(i) }
-              outs.payload.map { _.i := U(0, 16 bits) }
-              outs.valid := ins.valid
+        if(!withTest) {
+          for((carrierAdc, inAdc) <- (p.logic.adcs zip adc)) {
+            (carrierAdc zip inAdc.payload.subdivideIn(16 bits)).foreach { case(o, i) =>
+              o.r.assignFromBits(i)
+              o.i := o.i.getZero
             }
           }
         } else {
-          (p.logic.adc, test_adc).zipped.foreach { case (outs, ins) =>
-            outs.payload := ins
-            outs.valid := True
+          (p.logic.adcs zip test_adc).foreach { case (outs, ins) =>
+            outs := ins
           }
+        }
+      }
+      case _ =>
+    }
+  }
+
+  val ioLogic = Fiber build new Area {
+    val time = core.host[TimerPlugin].logic.time
+    plugins.foreach {
+      case p: execute.PulseGeneratorPlugin => {
+        (pgs zip p.logic.pgPorts).foreach { case (x, y) => 
+          x.io.event.payload := y.payload
+          x.io.event.valid := y.valid
+          x.io.time := time
+        }
+      }
+      case p: execute.CarrierPlugin => {
+        (cgs zip p.logic.cgPorts).foreach { case (x, y) => 
+          x.io.cmd <> y 
+          x.io.time := time
         }
       }
       case _ =>

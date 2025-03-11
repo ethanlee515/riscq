@@ -99,9 +99,15 @@ class Driver(dut: QubicSoc) {
   }
 
   def logDac(n: Int) = {
-    val dac = wb.da.dac(n)
+    val dac = dut.pgs(n).io.data
     val pulse = dac.payload.map { _.r.toDouble * (1 << 14) }.toList
     println(s"${pulse}")
+  }
+
+  def logCarrier(n: Int) = {
+    val carrier = dut.cgs(n).io.carrier
+    val data = carrier.payload.map { _.r.toDouble * (1 << 14) }.toList
+    println(s"${data}")
   }
 
   def logTime() = {
@@ -118,15 +124,18 @@ object QubicTestConfig {
 object TestQubicPulse extends App {
   import QubicTestConfig._
   simConfig
-    .compile(
-      QubicSoc(
+    .compile{
+      val dut = QubicSoc(
         qubitNum = 8,
         withVivado = false,
         withCocotb = false,
         withWhitebox = true,
         withTest = true
       )
-    )
+      dut.pgs.map{_.io.simPublic()}
+      dut.cgs.map{_.io.simPublic()}
+      dut
+    }
     .doSim { dut =>
       val driver = new Driver(dut)
       import driver._
@@ -148,7 +157,7 @@ object TestQubicPulse extends App {
       }
       cd100m.waitRisingEdge()
 
-      val startTime = 40
+      val startTime = 50
       val insts = List(
         setTime(0), // 0
         carrier(1 << (16 - 5), 0), // 1
@@ -174,6 +183,7 @@ object TestQubicPulse extends App {
         logTime()
         logPcs()
         logDac(0)
+        logCarrier(0)
         println("")
         tick()
       }

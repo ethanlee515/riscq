@@ -13,7 +13,6 @@ class CarrierPlugin(specs: Seq[CarrierGeneratorSpec], idWidth: Int = 5) extends 
     val uop = addUop(SingleDecoding(M"-----------------011000011111111", Nil))
 
     val pp = host[PipelinePlugin]
-    val tp = host[TimerPlugin]
     val buildBefore = retains(pp.elaborationLock)
 
     awaitBuild()
@@ -21,15 +20,14 @@ class CarrierPlugin(specs: Seq[CarrierGeneratorSpec], idWidth: Int = 5) extends 
     uopRetainer.release()
 
 
-    val cgPorts = specs.map(spec => master(CarrierGeneratorPort(spec))).toList
+    val cgPorts = specs.map(spec => master(Stream(CarrierGeneratorCmd(spec)))).toList
 
     val num = specs.length
     val freqWidth = specs.head.freqWidth
     val valids = Vec.fill(num)(Reg(Bool()))
     cgPorts.zipWithIndex.foreach{ case (cg, id) => 
-      cg.time := tp.logic.time 
       valids(id) := False
-      cg.cmd.valid := valids(id)
+      cg.valid := valids(id)
     }
 
     val carrierLogic = new pp.Execute(0) {
@@ -38,8 +36,8 @@ class CarrierPlugin(specs: Seq[CarrierGeneratorSpec], idWidth: Int = 5) extends 
         buf := Decode.INSTRUCTION
         val freq = buf(128 - 5 - freqWidth, freqWidth bits)
         val phase = buf(128 - 5 - freqWidth - freqWidth, freqWidth bits)
-        cg.cmd.freq := freq.asSInt
-        cg.cmd.phase := phase.asSInt
+        cg.freq := freq.asSInt
+        cg.phase := phase.asSInt
       }
       val id = Decode.INSTRUCTION(128 - 5, 5 bits)
       when(SEL && isValid && isReady) {

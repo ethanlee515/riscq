@@ -54,44 +54,31 @@ class PulseGeneratorPlugin(puop: PulseOpParam, specs: Seq[PulseGeneratorSpec]) e
     uop.dontFlushFrom(1)
 
     val pp = host[PipelinePlugin]
-    val tp = host[TimerPlugin]
-    val cp = host[CarrierPlugin]
-    val dap = host[DacAdcPlugin]
     val buildBefore = retains(pp.elaborationLock)
 
     awaitBuild()
 
     uopRetainer.release()
 
-    val pgPorts = specs.map(spec => master(PulseGeneratorPort(puop, spec))).toList
+    val pgPorts = specs.map(spec => master(Stream(PulseEvent(spec)))).toList
     val valids = Vec.fill(specs.length)(Reg(Bool()) init False)
     valids.map { _ := False }
-    (pgPorts zip valids).foreach { case (pg, valid) => pg.event.valid := valid }
-    val cgPorts = cp.logic.cgPorts
-    (pgPorts zip cgPorts).foreach { case (pg, cg) =>
-      pg.time := tp.logic.time
-      pg.carrier := cg.carrier
-    }
-    val dacs = dap.logic.dac
-    (pgPorts zip dacs).foreach { case (pg, dac) =>
-      dac := pg.data
-    }
-
+    (pgPorts zip valids).foreach { case (pg, valid) => pg.valid := valid }
 
     val pulseLogic = new pp.Execute(0) {
       val instBuffer = Vec.fill(specs.length)(Reg(this(Decode.INSTRUCTION))) // for timing
       for((pg, buf) <- pgPorts zip instBuffer) {
         buf := Decode.INSTRUCTION
         val pulse = Pulse(puop, buf)
-        pg.event.start := U(pulse.start).resized
-        pg.event.cmd.addr := U(pulse.addr).resized
-        pg.event.cmd.duration := U(pulse.duration).resized
-        pg.event.cmd.phase := S(pulse.phase).resized
-        pg.event.cmd.freq := S(pulse.freq).resized
-        pg.event.cmd.amp := S(pulse.amp).resized
+        pg.start := U(pulse.start).resized
+        pg.cmd.addr := U(pulse.addr).resized
+        pg.cmd.duration := U(pulse.duration).resized
+        pg.cmd.phase := S(pulse.phase).resized
+        pg.cmd.freq := S(pulse.freq).resized
+        pg.cmd.amp := S(pulse.amp).resized
       }
       val pulse = Pulse(puop, Decode.INSTRUCTION)
-      valids(pulse.id.asUInt.resized) := SEL && isValid && isReady
+      valids(pulse.id.asUInt.resized) := SEL && down.isFiring
     }
 
     buildBefore.release()

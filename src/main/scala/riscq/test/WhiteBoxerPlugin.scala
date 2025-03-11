@@ -145,17 +145,7 @@ class WhiteboxerPlugin() extends FiberPlugin{
 
     val pgp = host.get[PulseGeneratorPlugin]
     val pg = pgp.nonEmpty.option(new Area {
-      val pg = pgp.get.logic.pgPorts(0)
-      // val pgmem = pg.pg.mem.mem.simPublic
-      // pg.pg.memPort.write := False
-      // pg.pg.memPort.enable := True
-      // pgp.get.logic.memPort.write := False
-      // pgp.get.logic.memPort.enable := True
-      val pgdata = wrap(pg.data)
-      val pgcarrier = wrap(pg.carrier)
-      val pgevent = wrap(pg.event)
-      // val pgtimer = pg.timer.simPublic
-      // val phaseR = wrap(pg.pg.phaseC.r)
+      val pgEvent = pgp.get.logic.pgPorts(0)
     })
 
     val rfp = host.get[RegFilePlugin]
@@ -221,11 +211,6 @@ class WhiteboxerPlugin() extends FiberPlugin{
       }
     }
 
-    val cp = host.get[CarrierPlugin]
-    val carrier = cp.nonEmpty generate new Area{
-      val data = wrap(cp.get.logic.cgPorts(5).carrier)
-    }
-
     val rop = host.get[ReadoutPlugin]
     val readout = rop.nonEmpty generate new Area{
       val readR = wrap(rop.get.logic.results(1).r)
@@ -234,11 +219,6 @@ class WhiteboxerPlugin() extends FiberPlugin{
       val accv = wrap(rop.get.logic.readAccs(1).io.rsp.valid)
       val carrier = wrap(rop.get.logic.readAccs(1).io.carrier)
       val adc = wrap(rop.get.logic.readAccs(1).io.adc)
-    }
-
-    val dap = host.get[DacAdcPlugin]
-    val da = dap.nonEmpty generate new Area{
-      val dac = wrap(dap.get.logic.dac)
     }
 
     val lsup = host.get[LsuCachelessPlugin]

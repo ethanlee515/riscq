@@ -16,11 +16,6 @@ case class CarrierGeneratorSpec(
   val dataType = HardType(AFix.S(0 exp, freqWidth bits))
 }
 
-object CarrierBundle {
-  def apply(spec: CarrierGeneratorSpec) = Vec.fill(spec.batchSize)(Complex(spec.freqWidth))
-  def apply(batchSize: Int, freqWidth: Int) = Vec.fill(batchSize)(Complex(freqWidth))
-}
-
 case class CarrierGeneratorCmd(spec: CarrierGeneratorSpec) extends Bundle {
   val freq = spec.dataType()
   val phase = spec.dataType()
@@ -29,7 +24,7 @@ case class CarrierGeneratorCmd(spec: CarrierGeneratorSpec) extends Bundle {
 case class CarrierGeneratorPort(spec: CarrierGeneratorSpec) extends Bundle with IMasterSlave {
   val cmd = Stream(CarrierGeneratorCmd(spec))
   val time = UInt(spec.clockWidth bits)
-  val carrier = Flow(CarrierBundle(spec))
+  val carrier = Flow(ComplexBatch(spec.batchSize, spec.carrierWidth))
 
   def asMaster() = {
     master(cmd)

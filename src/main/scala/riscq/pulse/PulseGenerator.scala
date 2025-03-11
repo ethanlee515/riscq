@@ -62,7 +62,7 @@ case class PulseGeneratorWithCarrierInput(spec: PulseGeneratorSpec) extends Comp
 
   io.memPort.cmd.payload := addr
   io.memPort.cmd.valid := True
-  val envData = Reg(Vec.fill(spec.batchSize)(SInt(spec.dataWidth bits)))
+  val envData = Vec.fill(spec.batchSize)(SInt(spec.dataWidth bits))
   (envData, io.memPort.rsp.subdivideIn(spec.batchSize slices)).zipped
     .foreach((data, result) => data := result.asSInt)
   val envDataAReg = RegNext(envData)
@@ -392,7 +392,7 @@ case class PulseGeneratorPort(puop: PulseOpParam, spec: PulseGeneratorSpec) exte
   val time = UInt(puop.startWidth bits)
   val event = Stream(PulseEvent(spec))
   val data = Flow(PulseDataBundle(spec))
-  val carrier = Flow(CarrierBundle(spec.batchSize, spec.dataWidth))
+  val carrier = Flow(ComplexBatch(spec.batchSize, spec.dataWidth))
 
   def asMaster(): Unit = {
     out(time)
@@ -403,12 +403,13 @@ case class PulseGeneratorPort(puop: PulseOpParam, spec: PulseGeneratorSpec) exte
 
 case class PulseGeneratorWithCarrierTop(puop: PulseOpParam, spec: PulseGeneratorSpec) extends Component {
   val io = slave port PulseGeneratorPort(puop, spec)
+  val pg = PulseGeneratorWithCarrierInput(spec)
+  val memPort = master port cloneOf(pg.io.memPort)
+
   val time_buf = Reg(io.time)
   KeepAttribute(time_buf)
   time_buf := io.time
 
-  val pg = PulseGeneratorWithCarrierInput(spec)
-  val memPort = master port cloneOf(pg.io.memPort)
   pg.io.memPort <> memPort
   io.data << pg.io.data
   pg.io.carrier << io.carrier

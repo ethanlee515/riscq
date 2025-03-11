@@ -10,6 +10,7 @@ import riscq.pulse.{ReadoutAccumulator, ReadoutResult}
 import riscq.decode.Decode
 import riscq.riscv.IntRegFile
 import spinal.lib.misc.plugin.FiberPlugin
+import riscq.pulse.ComplexBatch
 
 object ReadoutPlugin extends AreaObject {
   val ReadoutCtrlEnum = new SpinalEnum(binarySequential) {
@@ -29,8 +30,8 @@ case class ReadoutPlugin(batchSize: Int, carrierWidth: Int, num: Int = 1, idWidt
 
     val pp = host[PipelinePlugin]
     val wbp = host[WriteBackPlugin]
-    val cp = host[CarrierPlugin]
-    val dap = host[DacAdcPlugin]
+    val carriers = in port Vec.fill(num)(ComplexBatch(batchSize, carrierWidth))
+    val adcs = in port Vec.fill(num)(ComplexBatch(batchSize, carrierWidth))
     val buildBefore = retains(pp.elaborationLock, wbp.elaborationLock)
 
     awaitBuild()
@@ -64,9 +65,9 @@ case class ReadoutPlugin(batchSize: Int, carrierWidth: Int, num: Int = 1, idWidt
       }
     }
 
-    (readAccs zip dap.logic.adc).foreach{ case (r, a) => r.io.adc := a.payload}
+    (readAccs zip adcs).foreach{ case (r, a) => r.io.adc := a}
     for(i <- 0 until num) {
-      readAccs(i).io.carrier := cp.logic.cgPorts(2 * num + i).carrier.payload
+      readAccs(i).io.carrier := carriers(i)
     }
     
     val readoutLogic = new pp.Execute(0) {
@@ -97,7 +98,6 @@ case class ReadoutPlugin(batchSize: Int, carrierWidth: Int, num: Int = 1, idWidt
 case class ReadoutBufferPlugin(id: Int) extends FiberPlugin {
   val logic = during setup new Area {
     val rop = host[ReadoutPlugin]
-    val dap = host[DacAdcPlugin]
 
     awaitBuild()
 

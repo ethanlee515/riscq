@@ -17,8 +17,8 @@ case class ReadoutAccumulator(batchSize: Int, inWidth: Int, outWidth: Int, timeW
   val io = new Bundle {
     // val en = in Bool()
     // val valid = out Bool()
-    val adc = in port CarrierBundle(batchSize, inWidth)
-    val carrier = in port CarrierBundle(batchSize, inWidth)
+    val adc = in port ComplexBatch(batchSize, inWidth)
+    val carrier = in port ComplexBatch(batchSize, inWidth)
     // val accR = out port SInt(outWidth bits)
     // val accI = out port SInt(outWidth bits)
     val cmd = slave port Flow(UInt(timeWidth bits))

@@ -95,6 +95,11 @@ object TestCosSinAdd extends App {
   }
 }
 
+object ComplexBatch {
+  def apply(batchSize: Int, dataWidth: Int) = Vec.fill(batchSize)(Complex(dataWidth))
+}
+
+
 object GenComplexMul extends App {
   SpinalVerilog(ComplexMul(16))
 }
