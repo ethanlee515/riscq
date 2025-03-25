@@ -1,15 +1,74 @@
 package scratch
 
 import spinal.core._
+import spinal.core.sim._
+import spinal.lib._
 import spinal.lib.misc.plugin.FiberPlugin
 import spinal.core.fiber.Retainer
 import spinal.lib.misc.plugin._
 import spinal.core.SpinalVerilog
+import spinal.lib.bus.tilelink
+import spinal.lib.bus.tilelink.sim._
 import spinal.lib.bus.tilelink._
 import spinal.lib.bus.tilelink.fabric._
 import spinal.lib.misc.Clint.addressWidth
 import spinal.lib.bus.misc.SizeMapping
 import spinal.core.fiber.Fiber
+import riscq.misc.TileLinkMemReadWriteFiber
+
+object TileLinkSizeMappingDemo extends App {
+  case class TLSM() extends Component {
+    val m1 =  new MasterBus(
+      tilelink.M2sParameters(
+        addressWidth = 32,
+        dataWidth = 32,
+        masters = List(
+          tilelink.M2sAgent(
+            name = this,
+            mapping = List(
+              tilelink.M2sSource(
+                id = SizeMapping(0, 4),
+                emits = tilelink.M2sTransfers(
+                  get = tilelink.SizeRange.upTo(0x100),
+                  putFull = tilelink.SizeRange.upTo(0x100),
+                  putPartial = tilelink.SizeRange.upTo(0x100)
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+
+    val mem = Mem.fill(1024)(Bits(32 bit))
+    val memFiber1 = TileLinkMemReadWriteFiber(mem.readWriteSyncPort(4), withOutReg = false)
+    val memFiber2 = TileLinkMemReadWriteFiber(mem.readWriteSyncPort(4), withOutReg = false)
+
+    memFiber1.up at SizeMapping(0, 0x10000000) of m1.node
+    memFiber2.up at 0x00000200 of m1.node
+  }
+
+  SimConfig.compile{TLSM()}.doSim{ dut => 
+    implicit val idAllocator = new tilelink.sim.IdAllocator(DebugId.width)
+    implicit val idCallback = new tilelink.sim.IdCallback
+    val cd = dut.clockDomain
+    cd.forkStimulus(10)
+    val tlDriver = new tilelink.sim.MasterAgent(dut.m1.node.bus, cd)
+    val monitor1 = new tilelink.sim.Monitor(dut.memFiber1.up.bus, cd)
+    val monitor2 = new tilelink.sim.Monitor(dut.memFiber2.up.bus, cd)
+    monitor1.add(new tilelink.sim.MonitorSubscriber {
+      override def onA(a: TransactionA) = {println(s"a1:${simTime()}"); println(a)}
+      override def onD(d: TransactionD) = {println(s"d1:${simTime()}");println(d)}
+    })
+    monitor2.add(new MonitorSubscriber {
+      override def onA(a: TransactionA) = {println(s"a2:${simTime()}"); println(a)}
+      override def onD(d: TransactionD) = {println(s"d2:${simTime()}");println(d)}
+    })
+
+    tlDriver.putFullData(0, 512, List(0.toByte))
+    cd.waitRisingEdge(100)
+  }
+}
 
 object TileLinkDemo extends App {
   case class MasterFiber() extends Area {

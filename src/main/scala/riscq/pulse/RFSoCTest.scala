@@ -10,7 +10,6 @@ import scala.math
 import scala.collection.mutable
 import riscq.misc.GpioFiber
 import spinal.lib.bus.tilelink.fabric.RamFiber
-import riscq.execute.PulseOpParam
 
 import spinal.lib.bus.amba4.axi.Axi4Config
 import spinal.lib.bus.amba4.axi.Axi4
@@ -94,7 +93,7 @@ case class DacTester() extends Component {
 
     val pulseMemFibers = new Area {
       // println(s"${pulseMems(i).axiPort}")
-      val pulseMemFiber = TileLinkMemReadWriteFiber(pulseMem.slowPort)
+      val pulseMemFiber = TileLinkMemReadWriteFiber(pulseMem.slowPort, withOutReg = false)
       pulseMemFiber.up at 0 of pulseMemPipe.down
     }
   }
@@ -403,7 +402,7 @@ case class FifoCcTester() extends Component {
 
   val mem = Mem(Bits(memBits bits), wordCount = 1024)
   val memTlPort = mem.readWriteSyncPort(maskWidth = memBits / 8)
-  val memTlFiber = TileLinkMemReadWriteFiber(memTlPort)
+  val memTlFiber = TileLinkMemReadWriteFiber(memTlPort, withOutReg = false)
   // val iBus = Node.down()
   // memTlFiber.up at pcOffset of iBus
   // val p = CachelessBusParam(32, 128, 2, false)

@@ -10,7 +10,6 @@ import spinal.lib.bus.tilelink._
 import spinal.lib.bus.tilelink
 import spinal.core.fiber.Fiber
 import riscq.misc.Axi4VivadoHelper
-import riscq.pulse.PulseGeneratorSpec
 import riscq.misc.TileLinkMemReadWriteFiber
 // import riscq.pulse.PulseGenerator
 import riscq.misc.TileLinkDriveFiber
@@ -37,7 +36,7 @@ object AxiToTileLinkMemTest extends App {
 
     val width = 128
     val mem = Mem.fill(1024)(Bits(width bits))
-    val memFiber = TileLinkMemReadWriteFiber(mem.readWriteSyncPort(width / 8))
+    val memFiber = TileLinkMemReadWriteFiber(mem.readWriteSyncPort(width / 8), withOutReg = false)
     memFiber.up at 0x0 of bridge.down
   }
   SpinalVerilog(AxiToTileLinkMem())
@@ -140,7 +139,7 @@ object AxiTileLinkMemReadWriteTest extends App {
 
       val mem = Mem.fill(1024)(Bits(128 bits))
       val memPort = mem.readWriteSyncPort(maskWidth = mem.wordType.getBitsWidth/8)
-      val memFiber = TileLinkMemReadWriteFiber(memPort)
+      val memFiber = TileLinkMemReadWriteFiber(memPort, withOutReg = false)
       memFiber.up at 0x100000 of sharedBus
       val addr = UInt(mem.addressWidth bits)
       val addrFiber = TileLinkDriveFiber(addr)

@@ -25,6 +25,7 @@ import riscq.riscv.RS1
 import riscq.schedule.HazardPlugin
 import riscq.riscv.RS2
 import scala.collection.mutable.LinkedHashMap
+// import riscq.soc.MemoryMapPlugins
 
 class WhiteboxerPlugin() extends FiberPlugin{
 
@@ -143,10 +144,10 @@ class WhiteboxerPlugin() extends FiberPlugin{
       val timeLt = wrap(tp.logic.timeLt)
     }
 
-    val pgp = host.get[PulseGeneratorPlugin]
-    val pg = pgp.nonEmpty.option(new Area {
-      val pgEvent = pgp.get.logic.pgPorts(0)
-    })
+    // val pgp = host.get[PulseGeneratorPlugin]
+    // val pg = pgp.nonEmpty.option(new Area {
+    //   val pgEvent = pgp.get.logic.pgPorts(0)
+    // })
 
     val rfp = host.get[RegFilePlugin]
     val rf = rfp.nonEmpty generate new Area {
@@ -211,15 +212,15 @@ class WhiteboxerPlugin() extends FiberPlugin{
       }
     }
 
-    val rop = host.get[ReadoutPlugin]
-    val readout = rop.nonEmpty generate new Area{
-      val readR = wrap(rop.get.logic.results(1).r)
-      val cmdv = wrap(rop.get.logic.readAccs(1).io.cmd.valid)
-      val accR = wrap(rop.get.logic.readAccs(1).io.rsp.r)
-      val accv = wrap(rop.get.logic.readAccs(1).io.rsp.valid)
-      val carrier = wrap(rop.get.logic.readAccs(1).io.carrier)
-      val adc = wrap(rop.get.logic.readAccs(1).io.adc)
-    }
+    // val rop = host.get[ReadoutPlugin]
+    // val readout = rop.nonEmpty generate new Area{
+    //   val readR = wrap(rop.get.logic.results(1).r)
+    //   val cmdv = wrap(rop.get.logic.readAccs(1).io.cmd.valid)
+    //   val accR = wrap(rop.get.logic.readAccs(1).io.rsp.r)
+    //   val accv = wrap(rop.get.logic.readAccs(1).io.rsp.valid)
+    //   val carrier = wrap(rop.get.logic.readAccs(1).io.carrier)
+    //   val adc = wrap(rop.get.logic.readAccs(1).io.adc)
+    // }
 
     val lsup = host.get[LsuCachelessPlugin]
     val lsu = lsup.nonEmpty generate new Area {

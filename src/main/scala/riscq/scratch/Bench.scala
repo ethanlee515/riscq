@@ -5,6 +5,10 @@ import spinal.lib._
 import spinal.lib.eda.bench.Rtl
 import spinal.lib.eda.bench.Bench
 import riscq.misc.XilinxRfsocTarget
+import riscq.memory.DualClockRam
+import riscq.memory.DualClockRamTest
+import riscq.pulse.TimedQueue
+import riscq.pulse.PulseGenerator
 
 object ManyRegs extends App {
   case class ManyRegs(n: Int) extends Component {
@@ -207,55 +211,82 @@ object BenchComplexMul extends App {
 object BenchTableAndDsp extends App {
   import riscq.pulse._
 
-  val param = TableAndDspParam(16)
   val rtl = Rtl(SpinalSystemVerilog(
-    TableAndDsp(param)
+    TableAndDsp(16)
   ))
-  Bench(List(rtl), XilinxRfsocTarget(1000 MHz), "./build/")
+  Bench(List(rtl), XilinxRfsocTarget(1000 MHz), "./bench/")
 }
 
-object BenchCarrierGenerator extends App {
-  import riscq.pulse._
+// object BenchCarrierGenerator extends App {
+//   import riscq.pulse._
 
-  val param = CarrierGeneratorSpec(
-    batchSize = 4,
-    carrierWidth = 16,
-    freqWidth = 16,
-    clockWidth = 32
-  )
-  val rtl = Rtl(SpinalVerilog(
-    CarrierGenerator(param)
-  ))
-  Bench(List(rtl), XilinxRfsocTarget(1000 MHz), "./build/")
-}
+//   val param = CarrierGeneratorSpec(
+//     batchSize = 4,
+//     carrierWidth = 16,
+//     freqWidth = 16,
+//     clockWidth = 32
+//   )
+//   val rtl = Rtl(SpinalVerilog(
+//     CarrierGenerator(param)
+//   ))
+//   Bench(List(rtl), XilinxRfsocTarget(1000 MHz), "./build/")
+// }
 
-object BenchPulseGenerator extends App {
-  import riscq.pulse._
+// object BenchPulseGenerator extends App {
+//   import riscq.pulse._
 
-  val dataWidth = 16
-  val addrWidth = 12
-  val phaseWidth = 16
-  val batchSize = 16
-  val pgSpec = PulseGeneratorSpec(
-    dataWidth = dataWidth,
-    batchSize = batchSize,
-    bufferDepth = 1 << addrWidth,
-    clockWidth = 32,
-    phaseWidth = phaseWidth,
-    freqWidth = phaseWidth,
-    ampWidth = 16,
-  )
-  val rtl = Rtl(SpinalVerilog(
-    PulseGeneratorWithCarrierInput(pgSpec)
-  ))
-  Bench(List(rtl), XilinxRfsocTarget(1000 MHz), "./build/")
-}
+//   val dataWidth = 16
+//   val addrWidth = 12
+//   val phaseWidth = 16
+//   val batchSize = 16
+//   val pgSpec = PulseGeneratorSpec(
+//     dataWidth = dataWidth,
+//     batchSize = batchSize,
+//     bufferDepth = 1 << addrWidth,
+//     clockWidth = 32,
+//     phaseWidth = phaseWidth,
+//     freqWidth = phaseWidth,
+//     ampWidth = 16,
+//   )
+//   val rtl = Rtl(SpinalVerilog(
+//     PulseGeneratorWithCarrierInput(pgSpec)
+//   ))
+//   Bench(List(rtl), XilinxRfsocTarget(1000 MHz), "./build/")
+// }
 
 object BenchCordic extends App {
   import riscq.pulse._
-  val param = CordicParam(16, 16, false)
   val rtl = Rtl(SpinalVerilog(
-    Cordic(param)
+    Cordic(xyWidth = 16, zWidth = 16, correctGain = true)
   ))
-  Bench(List(rtl), XilinxRfsocTarget(1000 MHz), "./build/")
+  Bench(List(rtl), XilinxRfsocTarget(1000 MHz), "./bench/")
+}
+
+object BramOutRegInfer extends App {
+  val rtl = Rtl(SpinalVerilog{ new Component{
+    val cd = ClockDomain.current
+    val bram = DualClockRamTest(32, 1024, cd, cd, true, true)
+    val slowPort = slave port cloneOf(bram.slowPort)
+    slowPort <> bram.slowPort
+  }
+  })
+  Bench(List(rtl), XilinxRfsocTarget(1000 MHz), "./bench/")
+}
+
+object BenchTimedQueue extends App {
+  val rtl= Rtl(SpinalVerilog(
+    TimedQueue(Bits(32 bit), 2, 32)
+  ))
+  Bench(List(rtl), XilinxRfsocTarget(1000 MHz), "./bench/")
+}
+
+object BenchPulseGenerator extends App {
+  val batchSize = 16
+  val dataWidth = 16
+  val addrWidth = 12
+  val timeWidth = 32
+  val rtl= Rtl(SpinalVerilog(
+    PulseGenerator(batchSize, dataWidth, addrWidth, timeWidth, queueDepth = 3)
+  ))
+  Bench(List(rtl), XilinxRfsocTarget(1000 MHz), "./bench/")
 }

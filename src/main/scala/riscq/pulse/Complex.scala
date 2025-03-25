@@ -6,17 +6,21 @@ import spinal.lib._
 import spinal.lib.misc.pipeline._
 
 case class Complex(width: Int) extends Bundle {
-  val r = AFix.S(1 exp, width bits)
-  val i = AFix.S(1 exp, width bits)
+  val r = AFix.S(0 exp, width bits)
+  val i = AFix.S(0 exp, width bits)
 
-  def assignTruncated(that: Complex) = {
-    r := that.r.truncated
-    i := that.i.truncated
-  }
-  def assignSaturated(that: Complex) = {
-    r := that.r.saturated
-    i := that.i.saturated
-  }
+  // def assignTruncated(that: Complex) = {
+  //   r := that.r.truncated
+  //   i := that.i.truncated
+  // }
+  // def assignSaturated(that: Complex) = {
+  //   r := that.r.saturated
+  //   i := that.i.saturated
+  // }
+}
+
+object ComplexBatch {
+  def apply(batchSize: Int, dataWidth: Int) = Vec.fill(batchSize)(Complex(dataWidth))
 }
 
 case class ComplexMul(width: Int) extends Component {
@@ -68,8 +72,8 @@ case class ComplexMul(width: Int) extends Component {
     SINOUT := MULTI + COMMONI // (XR*YI + YR*XI)
   }
   val stage6 = new StageArea(6) {
-    io.c.r.assignFromBits((COSOUT.asBits)(width - 2, width bits))
-    io.c.i.assignFromBits((SINOUT.asBits)(width - 2, width bits))
+    io.c.r.assignFromBits((COSOUT.asBits)(width - 1, width bits))
+    io.c.i.assignFromBits((SINOUT.asBits)(width - 1, width bits))
   }
 
   Builder(links)
@@ -85,7 +89,7 @@ object TestCosSinAdd extends App {
     dut.io.c0.r #= 0.707
     dut.io.c0.i #= 0.707
     dut.io.c1.r #= 0
-    dut.io.c1.i #= 1
+    dut.io.c1.i #= dut.io.c1.i.maxValue
 
     for(i <- 0 to 10) {
       sleep(1)
@@ -94,11 +98,6 @@ object TestCosSinAdd extends App {
     }
   }
 }
-
-object ComplexBatch {
-  def apply(batchSize: Int, dataWidth: Int) = Vec.fill(batchSize)(Complex(dataWidth))
-}
-
 
 object GenComplexMul extends App {
   SpinalVerilog(ComplexMul(16))

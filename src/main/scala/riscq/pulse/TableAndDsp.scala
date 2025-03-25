@@ -53,13 +53,17 @@ object CosSinTable {
   }
 }
 
-case class TableAndDsp(p: TableAndDspParam) extends Component {
+case class TableAndDsp(width: Int) extends Component {
   addAttribute("DONT_TOUCH", "TRUE")
-  val delay = 10
-
+  val latency = 10
+  val p = TableAndDspParam(width)
   val io = new Bundle {
     val cmd = slave Flow(TableAndClassInData(p))
-    val rsp = master Flow(Complex(p.width + 2))
+    // val rsp = master Flow(Complex(p.width + 2))
+    val rsp = master Flow(new Bundle {
+      val x = AFix.S(0 exp, p.width + 2 bit)
+      val y = AFix.S(0 exp, p.width + 2 bit)
+    })
   }
 
   val cosMsbTable = (0 until 1 << p.msbWidth).map(i => CosSinTable.cos(i, p.msbWidth)).map(CosSinTable.clip(_, p.tableWidth))
@@ -132,8 +136,8 @@ case class TableAndDsp(p: TableAndDspParam) extends Component {
 
   val outputLogic = new StageArea(resAt + 1) {
     io.rsp.valid := valid
-    io.rsp.r := OUTCOS
-    io.rsp.i := OUTSIN
+    io.rsp.x := OUTCOS
+    io.rsp.y := OUTSIN
   }
 
 
@@ -157,10 +161,9 @@ object TableAndDspTest extends App {
   def myfmt(x: Int, b: Int): String = {
     String.format("%" + b + "s", x.toBinaryString).replace(' ', '0')
   }
-  val p = TableAndDspParam(16)
-  SpinalVerilog(TableAndDsp(p))
+  val width = 16
   SimConfig.compile{
-    val dut = TableAndDsp(p)
+    val dut = TableAndDsp(width)
     dut.cosMsbPort.simPublic()
     dut.cosLsbPort.simPublic()
     dut.sinLsbPort.simPublic()
@@ -189,8 +192,8 @@ object TableAndDspTest extends App {
     dut.io.cmd.valid #= true
     for(i <- 0 until 15) {
       sleep(2)
-      val x = dut.io.rsp.r.toBigDecimal
-      val y = dut.io.rsp.i.toBigDecimal
+      val x = dut.io.rsp.x.toBigDecimal
+      val y = dut.io.rsp.y.toBigDecimal
       val ex = math.cos(ang*math.Pi)
       val ey = math.sin(ang*math.Pi)
       println(s"${i},${dut.io.rsp.valid.toBoolean}")
@@ -204,10 +207,10 @@ object TableAndDspTest extends App {
 }
 
 object AxiTableAndDspTest extends App {
-  val p = TableAndDspParam(16)
+  val width = 16
   SpinalVerilog {
     new Component {
-      val tad = TableAndDsp(p)
+      val tad = TableAndDsp(width)
       val axiConfig = Axi4Config(
         addressWidth = 32,
         dataWidth = 32,

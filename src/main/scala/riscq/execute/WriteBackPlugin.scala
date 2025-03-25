@@ -60,6 +60,7 @@ class WriteBackPlugin(val rf : RegfileSpec,
     val sorted = grouped.toList.sortBy(_.head.ctrlAt)
     val DATA = Payload(Bits(rf.width bits))
     val broadcastMin = Math.min(writeAt + rfp.writeLatency, allowBypassFrom)
+    println(s"########################$broadcastMin")
     dp.addPayloadDefault(SEL, False)
     for (group <- sorted) {
       val ctrlId = group.head.ctrlAt

@@ -13,7 +13,7 @@ import spinal.lib.pipeline._
 import spinal.lib.io.TriStateArray
 import scala.math
 
-class TileLinkMemReadWriteLogic[T <: Data](p : BusParameter, port: MemReadWritePort[T]) extends Area {
+class TileLinkMemReadWriteLogic[T <: Data](p : BusParameter, port: MemReadWritePort[T], withOutReg: Boolean) extends Area {
   val io = new Area{
     val up = Bus(p)
   }
@@ -76,6 +76,9 @@ class TileLinkMemReadWriteLogic[T <: Data](p : BusParameter, port: MemReadWriteP
 
     }
 
+
+    val buf = withOutReg generate new Stage(Connection.M2S())
+
     val rsp = new Stage(Connection.M2S()){
       val takeIt = cmd.LAST || cmd.IS_GET
       haltWhen(!io.up.d.ready && takeIt)
@@ -98,7 +101,7 @@ class TileLinkMemReadWriteLogic[T <: Data](p : BusParameter, port: MemReadWriteP
   // Component.current.addTag(new OrderingTag(ordering.stage()))
 }
 
-case class TileLinkMemReadWriteFiber[T <: Data](port: MemReadWritePort[T]) extends Area {
+case class TileLinkMemReadWriteFiber[T <: Data](port: MemReadWritePort[T], withOutReg: Boolean) extends Area {
   val up = Node.up()
 
   val dataBytes = math.pow(2, log2Up(port.dataType.getBitsWidth / 8)).toInt
@@ -107,7 +110,7 @@ case class TileLinkMemReadWriteFiber[T <: Data](port: MemReadWritePort[T]) exten
     up.m2s.supported load up.m2s.proposed.intersect(M2sTransfers.allGetPut).copy(addressWidth = port.addressWidth + log2Up(dataBytes), dataWidth = dataBytes * 8)
     up.s2m.none()
 
-    val logic = new TileLinkMemReadWriteLogic(up.bus.p, port)
+    val logic = new TileLinkMemReadWriteLogic(up.bus.p, port, withOutReg)
     logic.io.up << up.bus
 
     up.bus.get.simPublic
