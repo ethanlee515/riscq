@@ -397,3 +397,36 @@ object Demo2 extends App {
   }
 
 }
+
+object TestClearWhen extends App {
+  case class Top() extends Component {
+    val a = in Bool()
+    val b = Reg(Bool()) init True
+    val o = out Bool()
+    val c = in Bool()
+    val d = in Bool()
+    o := b
+    // when(c) {
+    //   b := False
+    // }
+    when(d) {
+      b := a
+    }
+    b.clearWhen(c)
+  }
+
+  SimConfig.compile{Top()}.doSim{ dut => 
+    val cd = dut.clockDomain
+    cd.forkStimulus(10)
+    cd.assertReset()
+    cd.waitRisingEdge()
+    cd.deassertReset()
+    dut.a #= true
+    dut.c #= true
+    dut.d #= true
+    cd.waitRisingEdge()
+    println(s"${dut.o.toBoolean}")
+  }
+
+  SpinalVerilog(Top())
+}

@@ -20,8 +20,35 @@ import spinal.lib.eda.bench.Bench
 import riscq.misc.XilinxRfsocTarget
 import scala.collection.mutable.LinkedHashMap
 import spinal.lib.bus.misc.SingleMapping
+import riscq.pulse.GenPG.batchSize
 
-case class MemMapRegFiber(pgs: List[pulse.PulseGeneratorWithCarrierTop], cgs: List[pulse.CarrierGenerator]) extends Area {
+case class DspConnectionArea(
+  qubitNum: Int,
+  pgs: List[pulse.PulseGeneratorWithCarrierTop], 
+  pms: List[DualClockRam],
+  cgs: List[pulse.CarrierGenerator], 
+  rds: List[pulse.ReadoutDecoder], 
+  ) extends Area {
+  
+  (pgs zip cgs).foreach{case (pg, cg) => pg.io.carrier := cg.io.carrier}
+
+  (pgs zip pms).foreach {
+    case (x, y) => {
+      y.fastPort.enable := True
+      y.fastPort.write := False
+      y.fastPort.mask.setAllTo(False)
+      y.fastPort.wdata.setAllTo(False)
+      y.fastPort.address := x.memPort.cmd.payload
+      x.memPort.rsp := RegNext(y.fastPort.rdata)
+    }
+  }
+
+  for((rd, id) <- rds.zipWithIndex) {
+    rd.io.carrier := cgs(2 * qubitNum + id).io.carrier.payload
+  }
+}
+
+case class MemMapRegFiber(pgs: List[pulse.PulseGeneratorWithCarrierTop], cgs: List[pulse.CarrierGenerator], rds: List[pulse.ReadoutDecoder]) extends Area {
   val up = Node.up()
   val allowBurst = false
 
@@ -29,6 +56,8 @@ case class MemMapRegFiber(pgs: List[pulse.PulseGeneratorWithCarrierTop], cgs: Li
   val pgStep = 0x100
   val cgOffset = 0x20000
   val cgStep = 0x100
+  val rdOffset = 0x30000
+  val rdStep = 0x100
 
   val logic = Fiber build new Area {
     up.m2s.supported load tilelink.SlaveFactory.getSupported(
@@ -55,6 +84,7 @@ case class MemMapRegFiber(pgs: List[pulse.PulseGeneratorWithCarrierTop], cgs: Li
     factory.onReadPrimitive(SingleMapping(timeCmpAddr + 8), haltSensitive = false, null) {
       when(waitTimeCmp) {
         factory.readHalt()
+        // factory.writeHalt()
       }
     }
 
@@ -97,6 +127,35 @@ case class MemMapRegFiber(pgs: List[pulse.PulseGeneratorWithCarrierTop], cgs: Li
 
       cg.io.time := time
     }
+
+    for((rd, id) <- rds.zipWithIndex) {
+      rd.io.cmd.valid := False
+      rd.io.cmd.payload := 0
+      rd.io.refR.valid := False
+      rd.io.refR.payload := 0
+      rd.io.refI.valid := False
+      rd.io.refI.payload := 0
+
+      // val cmdFlow = Reg(rd.io.cmd)
+      // rd.io.cmd := cmdFlow
+      // factory.driveFlow(cmdFlow, rdOffset + rdStep * id)
+
+      // val refRFlow = Reg(rd.io.refR)
+      // rd.io.refR := refRFlow
+      // factory.driveFlow(refRFlow, rdOffset + rdStep * id + 4)
+
+      // val refIFlow = Reg(rd.io.refI)
+      // rd.io.refI := refIFlow
+      // factory.driveFlow(refIFlow, rdOffset + rdStep * id + 8)
+
+      // factory.read(rd.io.res.payload, rdOffset + rdStep * id + 12)
+      // factory.onReadPrimitive(SingleMapping(rdOffset + rdStep * id + 12), haltSensitive = false, null) {
+      //   when(!rd.io.res.valid) {
+      //     factory.readHalt()
+      //   }
+      // }
+    }
+    
   }
 }
 
@@ -194,8 +253,8 @@ object MemoryMapPlugins {
     plugins += new execute.WriteBackPlugin(riscv.IntRegFile, writeAt = 2)
     plugins += new execute.IntFormatPlugin()
     plugins += new execute.IntAluPlugin(executeAt = 0, formatAt = 0)
+    plugins += new execute.BarrelShifterPlugin(shiftAt = 0, formatAt = 0)
     plugins += new execute.BranchPlugin()
-    plugins += new execute.ReadoutPlugin(batchSize = 4, carrierWidth = 16, num = qubitNum)
     plugins += new execute.lsu.LsuCachelessPlugin()
     // plugins += new test.WhiteboxerPlugin()
   }
@@ -261,29 +320,6 @@ case class MemoryMapSoc(
     )
   )
 
-  val rbp = execute.ReadoutBufferPlugin(0)
-  plugins += rbp
-  val readoutBuffer = DualClockRam(width = 128, depth = 1024, slowCd = cd100m, fastCd = cd500m)
-  val rbLogic = Fiber build new ResetArea(riscqRst, false) {
-    val addr = Reg(readoutBuffer.fastPort.address) init 0
-    val valid = rbp.logic.outData.valid
-    valid.simPublic()
-    when(valid) {
-      addr := addr + 1
-    }
-    readoutBuffer.fastPort.enable := True
-    readoutBuffer.fastPort.mask.setAllTo(True)
-    readoutBuffer.fastPort.address := addr
-    readoutBuffer.fastPort.write := valid
-    readoutBuffer.fastPort.wdata := rbp.logic.outData.payload
-  }
-  val rbBusLogic = new ClockingArea(cd100m) {
-    val rbTlFiber = TileLinkMemReadWriteFiber(readoutBuffer.slowPort)
-    val rbTlWa = WidthAdapter()
-    rbTlWa.up at 0x0f000000L of shareBus
-    rbTlFiber.up at 0 of rbTlWa.down
-  }
-
   // cpu instruction bus
 
   // instruction memory
@@ -291,7 +327,8 @@ case class MemoryMapSoc(
   val pcAxiOffset = 0x01000000L
   val dMemOffset = 0x08000000L
 
-  val mem = DualClockRam(width = 32, depth = 1024, slowCd = cd500m, fastCd = cd500m)
+  val memOutReg = true
+  val mem = DualClockRam(width = 32, depth = 1024, slowCd = cd500m, fastCd = cd500m, withOutRegFast = memOutReg, withOutRegSlow = memOutReg)
 
   val iBusArb = Node()
   iBusArb.setUpConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
@@ -300,7 +337,7 @@ case class MemoryMapSoc(
   dBusArb.setUpConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
 
   val iBus = Node.down()
-  val iBusFiber = TileLinkMemReadWriteFiber(mem.slowPort)
+  val iBusFiber = TileLinkMemReadWriteFiber(mem.slowPort, withOutReg = memOutReg)
   iBusFiber.up at 0 of iBusArb
   // iBusFiber.up.setUpConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
   iBusArb at 0 of iBus
@@ -308,7 +345,7 @@ case class MemoryMapSoc(
   plugins += new fetch.FetchCachelessTileLinkPlugin(iBus)
 
   val dBus = Node.down()
-  val dBusFiber = TileLinkMemReadWriteFiber(mem.fastPort)
+  val dBusFiber = TileLinkMemReadWriteFiber(mem.fastPort, withOutReg = memOutReg)
   dBusFiber.up at 0 of dBusArb
   dBusFiber.up.setUpConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
   dBusArb at 0 of dBus
@@ -354,28 +391,21 @@ case class MemoryMapSoc(
 
   
     // pulse generator and carrier generator
-  val pgCgArea = new ResetArea(riscqRst, false) {
+  val dspArea = new ResetArea(riscqRst, false) {
     val pgs = pluginsArea.pgSpecs.map(spec => pulse.PulseGeneratorWithCarrierTop(QubicPlugins.puop, spec))
     pgs.foreach{_.addAttribute("KEEP_HIERARCHY", "TRUE")}
     val cgs = pluginsArea.cgSpecs.map(spec => pulse.CarrierGenerator(spec))
+
+    val readAccWidth = 27
+    val rds = List.fill(qubitNum)(pulse.ReadoutDecoder(batchSize = 4, inWidth = 16, accWidth = readAccWidth, timeWidth = 12))
   }
-  val pgs = pgCgArea.pgs
-  val cgs = pgCgArea.cgs
+  val pgs = dspArea.pgs
+  val cgs = dspArea.cgs
+  val rds = dspArea.rds
 
-  (pgs zip cgs).foreach{case (pg, cg) => pg.io.carrier := cg.io.carrier}
+  val dspConnectionArea = DspConnectionArea(qubitNum, pgs, pulseMems, cgs, rds)
 
-  (pgs zip pulseMems).foreach {
-    case (x, y) => {
-      y.fastPort.enable := True
-      y.fastPort.write := False
-      y.fastPort.mask.setAllTo(False)
-      y.fastPort.wdata.setAllTo(False)
-      y.fastPort.address := x.memPort.cmd.payload
-      x.memPort.rsp := RegNext(y.fastPort.rdata)
-    }
-  }
-
-  val mmFiber = MemMapRegFiber(pgs, cgs)
+  val mmFiber = MemMapRegFiber(pgs, cgs, rds)
   mmFiber.up at 0 of dBusArb
   mmFiber.up.setUpConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
 
@@ -390,6 +420,31 @@ case class MemoryMapSoc(
     d.ready := True
   }
 
+  val rbId = 0
+  val readoutBuffer = DualClockRam(width = 128, depth = 1024, slowCd = cd100m, fastCd = cd500m)
+  val rbLogic = Fiber build new ResetArea(riscqRst, false) {
+    val addr = Reg(readoutBuffer.fastPort.address) init 0
+    val valid = rds(rbId).io.demodData.valid
+    valid.simPublic()
+    when(valid) {
+      addr := addr + 1
+    }
+
+    readoutBuffer.fastPort.enable := True
+    readoutBuffer.fastPort.mask.setAllTo(True)
+    readoutBuffer.fastPort.address := addr
+    readoutBuffer.fastPort.write := valid
+    readoutBuffer.fastPort.wdata := rds(rbId).io.demodData.payload.asBits
+  }
+
+  val rbBusLogic = new ClockingArea(cd100m) {
+    val rbTlFiber = TileLinkMemReadWriteFiber(readoutBuffer.slowPort)
+    val rbTlWa = WidthAdapter()
+    rbTlWa.up at 0x0f000000L of shareBus
+    rbTlFiber.up at 0 of rbTlWa.down
+  }
+
+
   val test_adc = withTest generate (in port Vec.fill(qubitNum * 2)(pulse.ComplexBatch(batchSize = 4, dataWidth = 16)))
 
   // pulse generator output
@@ -399,26 +454,17 @@ case class MemoryMapSoc(
   }
 
   // readout input
-  val readoutInputLogic = Fiber build new Area {
-    plugins.foreach {
-      case p: execute.ReadoutPlugin => {
-        for(i <- 0 until p.num) {
-          p.logic.carriers(i) := cgs(2 * p.num + i).io.carrier.payload
-        }
-        if(!withTest) {
-          for((carrierAdc, inAdc) <- (p.logic.adcs zip adc)) {
-            (carrierAdc zip inAdc.payload.subdivideIn(16 bits)).foreach { case(o, i) =>
-              o.r.assignFromBits(i)
-              o.i := o.i.getZero
-            }
-          }
-        } else {
-          (p.logic.adcs zip test_adc).foreach { case (outs, ins) =>
-            outs := ins
-          }
-        }
+
+  if(!withTest) {
+    for((rd, inAdc) <- (rds zip adc)) {
+      (rd.io.adc zip inAdc.payload.subdivideIn(16 bits)).foreach { case(o, i) =>
+        o.r.assignFromBits(i)
+        o.i := o.i.getZero
       }
-      case _ =>
+    }
+  } else {
+    (rds zip test_adc).foreach { case (outs, ins) =>
+      outs.io.adc := ins
     }
   }
   
