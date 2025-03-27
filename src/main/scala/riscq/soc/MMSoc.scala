@@ -53,12 +53,12 @@ case class MemMapRegFiber(pgs: List[pulse.PulseGeneratorWithCarrierTop], cgs: Li
   val up = Node.up()
   val allowBurst = false
 
-  val pgOffset = 0x10000
-  val pgStep = 0x100
-  val cgOffset = 0x20000
-  val cgStep = 0x100
-  val rdOffset = 0x30000
-  val rdStep = 0x100
+  val pgOffset = 0x100000
+  val pgStep = 0x10000
+  val cgOffset = 0x200000
+  val cgStep = 0x10000
+  val rdOffset = 0x300000
+  val rdStep = 0x10000
 
   val logic = Fiber build new Area {
     up.m2s.supported load tilelink.SlaveFactory.getSupported(
@@ -95,14 +95,14 @@ case class MemMapRegFiber(pgs: List[pulse.PulseGeneratorWithCarrierTop], cgs: Li
       val pgIo = Reg(pg.io.event.payload)
       val pgValid = Reg(Bool())
       pgValid := False
-      pgFactory.write(pgIo.cmd.addr, pgOffset + pgStep*id)
-      pgFactory.write(pgIo.cmd.amp, pgOffset + pgStep*id + 4)
-      pgFactory.write(pgIo.cmd.duration, pgOffset + pgStep*id + 8)
+      pgFactory.write(pgIo.cmd.addr, pgOffset + pgStep*id, bitOffset = 16)
+      pgFactory.write(pgIo.cmd.amp, pgOffset + pgStep*id + 0x10, bitOffset = 16)
+      pgFactory.write(pgIo.cmd.duration, pgOffset + pgStep*id + 0x20, bitOffset = 16)
       // pgFactory.write(pgIo.cmd.freq, pgOffset + pgStep*id + 12)
-      pgFactory.write(pgIo.cmd.phase, pgOffset + pgStep*id + 12)
-      pgFactory.write(pgIo.start, pgOffset + pgStep*id + 16)
+      pgFactory.write(pgIo.cmd.phase, pgOffset + pgStep*id + 0x30, bitOffset = 16)
+      pgFactory.write(pgIo.start, pgOffset + pgStep*id + 0x40, bitOffset = 16)
       pgIo.cmd.freq := 0
-      pgFactory.onWrite(pgOffset + pgStep*id + 16) { pgValid := True}
+      pgFactory.onWrite(pgOffset + pgStep*id + 0x40) { pgValid := True}
 
       val pgStream = cloneOf(pg.io.event)
       pgStream.payload := pgIo
@@ -120,8 +120,8 @@ case class MemMapRegFiber(pgs: List[pulse.PulseGeneratorWithCarrierTop], cgs: Li
       val cgIo = Reg(cg.io.cmd.payload).simPublic()
       val cgValid = Reg(Bool())
       cgValid := False
-      cgFactory.write(cgIo.freq, cgOffset + cgStep * id)
-      cgFactory.write(cgIo.phase, cgOffset + cgStep * id + 4)
+      cgFactory.write(cgIo.freq, cgOffset + cgStep * id, bitOffset = 16)
+      cgFactory.write(cgIo.phase, cgOffset + cgStep * id + 0x10, bitOffset = 16)
       cgFactory.onWrite(cgOffset + cgStep * id) { cgValid := True}
 
       val cgStream = cloneOf(cg.io.cmd)
@@ -143,18 +143,18 @@ case class MemMapRegFiber(pgs: List[pulse.PulseGeneratorWithCarrierTop], cgs: Li
 
       val cmdFlow = Reg(rd.io.cmd)
       rd.io.cmd := cmdFlow
-      factory.driveFlow(cmdFlow, rdOffset + rdStep * id)
+      factory.driveFlow(cmdFlow, rdOffset + rdStep * id, bitOffset = 16)
 
       val refRFlow = Reg(rd.io.refR)
       rd.io.refR := refRFlow
-      factory.driveFlow(refRFlow, rdOffset + rdStep * id + 4)
+      factory.driveFlow(refRFlow, rdOffset + rdStep * id + 0x10, bitOffset = 16)
 
       val refIFlow = Reg(rd.io.refI)
       rd.io.refI := refIFlow
-      factory.driveFlow(refIFlow, rdOffset + rdStep * id + 8)
+      factory.driveFlow(refIFlow, rdOffset + rdStep * id + 0x20, bitOffset = 16)
 
-      factory.read(rd.io.res.payload, rdOffset + rdStep * id + 12)
-      factory.onReadPrimitive(SingleMapping(rdOffset + rdStep * id + 12), haltSensitive = false, null) {
+      factory.read(rd.io.res.payload, rdOffset + rdStep * id + 0x30)
+      factory.onReadPrimitive(SingleMapping(rdOffset + rdStep * id + 0x30), haltSensitive = false, null) {
         when(!rd.io.res.valid) {
           factory.readHalt()
         }
@@ -167,7 +167,7 @@ case class MemMapRegFiber(pgs: List[pulse.PulseGeneratorWithCarrierTop], cgs: Li
 object MemoryMapPlugins {
   val puop = execute.PulseOpParam(
     addrWidth = 12,
-    startWidth = 32,
+    startWidth = 16,
     durationWidth = 12,
     phaseWidth = 16,
     freqWidth = 16,
