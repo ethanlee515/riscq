@@ -4,22 +4,25 @@ import spinal.core.sim._
 import spinal.core._
 import spinal.lib.bus.tilelink.sim._
 import spinal.lib.bus.tilelink._
+import spinal.lib.misc.Elf
+import java.io.File
 import riscq._
-import riscq.soc.QubicSoc
+import riscq.soc.MemoryMapSoc
 import spinal.lib.bus.amba4.axi.sim.Axi4Master
 import riscq.tester.RvAssembler
 import riscq.tester.QubicAssembler
 import riscq.tester.ByteHelper
-import riscq.soc.QubicPlugins
+import riscq.soc.MemoryMapPlugins
+import net.fornwall.jelf.ElfSectionHeader
 
-class Driver(dut: QubicSoc) {
+class Driver(dut: MemoryMapSoc) {
   implicit val idAllocator = new IdAllocator(DebugId.width)
   implicit val idCallback = new IdCallback
   val cd = dut.clockDomain
   val cd100m = dut.cd100m
 
   val wb = dut.core.host[test.WhiteboxerPlugin].logic
-  val puop = QubicPlugins.puop
+  val puop = MemoryMapPlugins.puop
 
   var axi4Driver: Axi4Master = null
   var tlDriver: MasterAgent = null
@@ -33,7 +36,7 @@ class Driver(dut: QubicSoc) {
 
     cd.assertReset()
     cd100m.assertReset()
-    cd100m.waitRisingEdge(0)
+    cd100m.waitRisingEdge(10)
     cd.deassertReset()
     cd100m.deassertReset()
   }
@@ -46,17 +49,17 @@ class Driver(dut: QubicSoc) {
     cd.deassertReset()
   }
 
-  def loadIMem(addr: Long, insts: Seq[String]) = {
+  def loadMem(addr: Long, insts: Seq[String]) = {
     var writeAddr = addr
     for (inst <- insts) {
       val instInt = BigInt(inst, 2)
-      dut.iMem.mem.setBigInt(writeAddr, instInt)
+      dut.mem.mem.setBigInt(writeAddr, instInt)
       writeAddr += 1
     }
   }
 
   def getDMem(addr: Long): BigInt = {
-    return dut.dMem.mem.getBigInt(addr)
+    return dut.mem.mem.getBigInt(addr)
   }
 
   def tick(t: Int = 1) = {
@@ -75,6 +78,11 @@ class Driver(dut: QubicSoc) {
     println(s"pc: ${pc}, v: ${valid}")
   }
 
+  def logBranch() = {
+    val doit = wb.branch.doIt.toBoolean
+    println(s"br doit: $doit")
+  }
+
   def logPcs() = {
     for (data <- wb.pcs.data) {
       println(
@@ -86,7 +94,7 @@ class Driver(dut: QubicSoc) {
   def logExInsts() = {
     for (data <- wb.exInsts.data) {
       println(s"pc ${data.pc.toBigInt.toString(16)}, ${data.inst.toBigInt
-          .toString(2)}, v: ${data.valid.toBoolean}, r: ${data.ready.toBoolean}, ${data.ctrlName}")
+          .toString(16)}, v: ${data.valid.toBoolean}, r: ${data.ready.toBoolean}, ${data.ctrlName}")
     }
   }
 
@@ -95,13 +103,24 @@ class Driver(dut: QubicSoc) {
     val src1k = wb.src.src1k.toBigInt
     val src2 = wb.src.src2.toBigInt
     val src2k = wb.src.src2k.toBigInt
-    println(s"src1: $src1, src1k: $src1k, src2: $src2, src2k: $src2k")
+    val addsub = wb.src.addsub.toBigInt
+    println(s"src1: $src1, src1k: $src1k, src2: $src2, src2k: $src2k, addsub: $addsub")
+  }
+
+  def logHazard() = {
+    val rs = wb.hazard.rs.toBoolean
+    val fl = wb.hazard.flush.toBoolean
+    println(s"rshazard: $rs, flush hazard: $fl")
   }
 
   def logDac(n: Int) = {
     val dac = dut.pgs(n).io.data
+    val dacCarrier = dut.pgs(n).io.carrier
+    val carrier = dacCarrier.payload.map {_.r.toDouble}.toList
+    val event = dut.pgs(n).io.event.payload
     val pulse = dac.payload.map { _.r.toDouble * (1 << 14) }.toList
-    println(s"${pulse}")
+    println(s"pulse ev: v: ${dut.pgs(n).io.event.valid.toBoolean}, amp: ${event.cmd.amp.toBigInt}, start: ${event.start.toBigInt}")
+    println(s"pulse: ${pulse}")
   }
 
   def logCarrier(n: Int) = {
@@ -111,40 +130,39 @@ class Driver(dut: QubicSoc) {
   }
 
   def logTime() = {
-    val time = wb.timer.time.toBigInt
+    val time = dut.mmFiber.logic.time.toBigInt
     println(s"time: $time")
   }
+
 }
 
-object QubicTestConfig {
+object MMSocTestConfig {
   val simConfig = SimConfig.addSimulatorFlag("-Wno-MULTIDRIVEN") // .withFstWave.withTimeSpec(1 ns, 1 ps)
 }
 
+
 // println(s"${dut.cd100mLogic.iMemTlFiber.up.bus.a.valid.toBoolean}")
-object TestQubicPulse extends App {
-  import QubicTestConfig._
+object TestMMSocPulse extends App {
+  import MMSocTestConfig._
   simConfig
-    .compile{
-      val dut = QubicSoc(
+    .compile {
+      val dut = MemoryMapSoc(
         qubitNum = 8,
         withVivado = false,
         withCocotb = false,
         withWhitebox = true,
         withTest = true
-      )
-      dut.pgs.map{_.io.simPublic()}
-      dut.cgs.map{_.io.simPublic()}
+      ) 
+      dut.pgs.map { _.io.simPublic() }
+      dut.cgs.map { _.io.simPublic() }
       dut
     }
     .doSim { dut =>
       val driver = new Driver(dut)
       import driver._
-      val rvAsm = new RvAssembler(128)
-      import rvAsm._
-      val qbAsm = new QubicAssembler()
-      import qbAsm._
 
       init()
+
 
       val batchSize = 16
       val dataWidth = 16
@@ -153,41 +171,67 @@ object TestQubicPulse extends App {
         val batch = List.fill(batchSize)(dt)
         val batchData = riscq.pulse.PGTestPulse.concat(batch, dataWidth)
         val dataStr = batch.map { x => ByteHelper.intToBinStr(x, dataWidth) }.reduce { _ ++ _ }
-        tlDriver.putFullData(0, dut.pulseOffset + i * batchSize * dataWidth / 8, ByteHelper.fromBinStr(dataStr).reverse)
+        tlDriver.putFullData(0, dut.pmAxiOffset + i * batchSize * dataWidth / 8, ByteHelper.fromBinStr(dataStr).reverse)
       }
       cd100m.waitRisingEdge()
 
+
+      val elfFile = new File("compiler-scripts/test.elf")
+      val elf = new Elf(elfFile, addressWidth = 32)
+      elf.load(dut.mem.mem, -0x80000000)
+
       val startTime = 50
-      val insts = List(
-        setTime(0), // 0
-        carrier(1 << (16 - 5), 0), // 1
-        pulse(
-          puop,
-          start = startTime,
-          addr = 0,
-          duration = 4,
-          phase = (1 << (puop.phaseWidth - 7)),
-          freq = 0,
-          amp = (1 << (puop.ampWidth - 1)) - 1
-        ), // 2
-        beq(0, 0, 0) // 3
-      )
-      loadIMem(0, insts)
 
       dut.riscq_rst #= true
-      tick()
+      tick(10)
       dut.riscq_rst #= false
 
-      tick(startTime+8)
-      for (i <- 0 until 6) {
+      val monitor = new Monitor(dut.dBus.bus, cd)
+      val pcReset = 0x80000000l
+      monitor.add(new MonitorSubscriber {
+        override def onA(a: TransactionA) = {println(s"${simTime()}"); println(a)}
+        override def onD(d: TransactionD) = {println(s"!!!!!!!${simTime()}");println(d)}
+      })
+
+      tick(20)
+      for (i <- 0 until 120) {
+        // println(s"${dut.mem.mem.getBigInt(0).toString(16)}")
+        // println(s"${dut.mem.mem.getBigInt(0x1d).toString(16)}")
+        println(s"${dut.mmFiber.logic.cgParams(0).cgIo.freq.toDouble}")
+        println(s"bypass: ${wb.hazard.bypass_1.map{case (id, data) => (id, data.toBoolean)}}")
         logTime()
-        logPcs()
+        // logBranch()
+        // logHazard()
+        // logPcs()
+        logSrc()
+        // logExInsts()
         logDac(0)
-        logCarrier(0)
+        // logCarrier(0)
         println("")
         tick()
       }
     }
 }
 
-
+object TestLoadElf extends App {
+  val file = new File("compiler-scripts/test.elf")
+  val offset = 0
+  val addressWidth = 32
+  val elf = new Elf(file, addressWidth)
+  elf.foreachSection { section =>
+    if ((section.header.sh_flags & ElfSectionHeader.FLAG_ALLOC) != 0) {
+      println(f"${section.header.getName}")
+      val data = elf.getData(section)
+      val memoryAddress = (section.header.sh_addr - offset) & ((BigInt(1) << addressWidth) - 1).toLong
+      println(s"addr: ${memoryAddress.toHexString},")
+      for (d <- data) {
+        val unsigned = d.toInt & 0xff
+        val res = f"${unsigned}%02X"
+        print(s"${res} ")
+      }
+      print("\n\n")
+    }
+  }
+  // val content = elf.getMemInit(fakeComp.mem, 0)
+  // println(s"${content}")
+}

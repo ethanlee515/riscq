@@ -21,6 +21,7 @@ import riscq.misc.XilinxRfsocTarget
 import scala.collection.mutable.LinkedHashMap
 import spinal.lib.bus.misc.SingleMapping
 import riscq.pulse.GenPG.batchSize
+import spinal.lib.misc.PathTracer
 
 case class DspConnectionArea(
   qubitNum: Int,
@@ -73,6 +74,7 @@ case class MemMapRegFiber(pgs: List[pulse.PulseGeneratorWithCarrierTop], cgs: Li
     val timeAddr = 0xBFF8
     val time = Reg(UInt(32 bit)) init 0
     time := time + U(1)
+    time.simPublic()
 
     factory.readAndWrite(time, timeAddr)
 
@@ -93,31 +95,34 @@ case class MemMapRegFiber(pgs: List[pulse.PulseGeneratorWithCarrierTop], cgs: Li
       val pgIo = Reg(pg.io.event.payload)
       val pgValid = Reg(Bool())
       pgValid := False
-      pgFactory.write(pgIo.cmd.addr, pgStep*id)
-      pgFactory.write(pgIo.cmd.amp, pgStep*id + 4)
-      pgFactory.write(pgIo.cmd.duration, pgStep*id + 8)
-      pgFactory.write(pgIo.cmd.freq, pgStep*id + 12)
-      pgFactory.write(pgIo.cmd.phase, pgStep*id + 16)
-      pgFactory.write(pgIo.start, pgStep*id + 20)
-      pgFactory.onWrite(pgStep*id + 20) { pgValid := True}
+      pgFactory.write(pgIo.cmd.addr, pgOffset + pgStep*id)
+      pgFactory.write(pgIo.cmd.amp, pgOffset + pgStep*id + 4)
+      pgFactory.write(pgIo.cmd.duration, pgOffset + pgStep*id + 8)
+      // pgFactory.write(pgIo.cmd.freq, pgOffset + pgStep*id + 12)
+      pgFactory.write(pgIo.cmd.phase, pgOffset + pgStep*id + 12)
+      pgFactory.write(pgIo.start, pgOffset + pgStep*id + 16)
+      pgIo.cmd.freq := 0
+      pgFactory.onWrite(pgOffset + pgStep*id + 16) { pgValid := True}
 
       val pgStream = cloneOf(pg.io.event)
       pgStream.payload := pgIo
       pgStream.valid := pgValid
       val pgPipe = StreamPipe.FULL(pgStream)
       pg.io.event <> pgPipe
+      // pg.io.event.payload := pgIo
+      // pg.io.event.valid := pgValid
 
       pg.io.time := time
     }
 
     val cgFactory = factory
-    for((cg, id) <- cgs.zipWithIndex) {
-      val cgIo = Reg(cg.io.cmd.payload)
+    val cgParams = for((cg, id) <- cgs.zipWithIndex) yield new Area {
+      val cgIo = Reg(cg.io.cmd.payload).simPublic()
       val cgValid = Reg(Bool())
       cgValid := False
-      cgFactory.write(cgIo.freq, cgStep * id)
-      cgFactory.write(cgIo.phase, cgStep * id + 4)
-      cgFactory.onWrite(cgStep * id) { cgValid := True}
+      cgFactory.write(cgIo.freq, cgOffset + cgStep * id)
+      cgFactory.write(cgIo.phase, cgOffset + cgStep * id + 4)
+      cgFactory.onWrite(cgOffset + cgStep * id) { cgValid := True}
 
       val cgStream = cloneOf(cg.io.cmd)
       cgStream.payload := cgIo
@@ -129,31 +134,31 @@ case class MemMapRegFiber(pgs: List[pulse.PulseGeneratorWithCarrierTop], cgs: Li
     }
 
     for((rd, id) <- rds.zipWithIndex) {
-      rd.io.cmd.valid := False
-      rd.io.cmd.payload := 0
-      rd.io.refR.valid := False
-      rd.io.refR.payload := 0
-      rd.io.refI.valid := False
-      rd.io.refI.payload := 0
+      // rd.io.cmd.valid := False
+      // rd.io.cmd.payload := 0
+      // rd.io.refR.valid := False
+      // rd.io.refR.payload := 0
+      // rd.io.refI.valid := False
+      // rd.io.refI.payload := 0
 
-      // val cmdFlow = Reg(rd.io.cmd)
-      // rd.io.cmd := cmdFlow
-      // factory.driveFlow(cmdFlow, rdOffset + rdStep * id)
+      val cmdFlow = Reg(rd.io.cmd)
+      rd.io.cmd := cmdFlow
+      factory.driveFlow(cmdFlow, rdOffset + rdStep * id)
 
-      // val refRFlow = Reg(rd.io.refR)
-      // rd.io.refR := refRFlow
-      // factory.driveFlow(refRFlow, rdOffset + rdStep * id + 4)
+      val refRFlow = Reg(rd.io.refR)
+      rd.io.refR := refRFlow
+      factory.driveFlow(refRFlow, rdOffset + rdStep * id + 4)
 
-      // val refIFlow = Reg(rd.io.refI)
-      // rd.io.refI := refIFlow
-      // factory.driveFlow(refIFlow, rdOffset + rdStep * id + 8)
+      val refIFlow = Reg(rd.io.refI)
+      rd.io.refI := refIFlow
+      factory.driveFlow(refIFlow, rdOffset + rdStep * id + 8)
 
-      // factory.read(rd.io.res.payload, rdOffset + rdStep * id + 12)
-      // factory.onReadPrimitive(SingleMapping(rdOffset + rdStep * id + 12), haltSensitive = false, null) {
-      //   when(!rd.io.res.valid) {
-      //     factory.readHalt()
-      //   }
-      // }
+      factory.read(rd.io.res.payload, rdOffset + rdStep * id + 12)
+      factory.onReadPrimitive(SingleMapping(rdOffset + rdStep * id + 12), haltSensitive = false, null) {
+        when(!rd.io.res.valid) {
+          factory.readHalt()
+        }
+      }
     }
     
   }
@@ -233,7 +238,7 @@ object MemoryMapPlugins {
     plugins += new fetch.FetchCachelessPlugin(
       wordWidth = 32,
       forkAt = 0,
-      joinAt = 1
+      joinAt = 4
     )
     // plugins += new decode.DecoderSimplePlugin(decodeAt = 0)
     plugins += new decode.DecoderPlugin(decodeAt = 0)
@@ -297,6 +302,7 @@ case class MemoryMapSoc(
   val riscq_rst = in Bool ()
   // val riscqRst = RegNext(RegNext(riscq_rst))
   val riscqRst = BufferCC(riscq_rst)
+  riscqRst.addAttribute("MAX_FANOUT", "128")
 
   val axiConfig = Axi4Config(
     addressWidth = 32,
@@ -310,7 +316,6 @@ case class MemoryMapSoc(
   val shareBus = cd100m(Node())
 
   // pulse mem
-  val pulseOffset = 0
   val pulseMems = pluginsArea.pgSpecs.map(spec =>
     DualClockRam(
       width = spec.batchSize * spec.dataWidth,
@@ -324,8 +329,7 @@ case class MemoryMapSoc(
 
   // instruction memory
   val pcOffset = 0x80000000L
-  val pcAxiOffset = 0x01000000L
-  val dMemOffset = 0x08000000L
+  val pmAxiOffset = 0x10000000L
 
   val memOutReg = true
   val mem = DualClockRam(width = 32, depth = 1024, slowCd = cd500m, fastCd = cd500m, withOutRegFast = memOutReg, withOutRegSlow = memOutReg)
@@ -338,7 +342,7 @@ case class MemoryMapSoc(
 
   val iBus = Node.down()
   val iBusFiber = TileLinkMemReadWriteFiber(mem.slowPort, withOutReg = memOutReg)
-  iBusFiber.up at 0 of iBusArb
+  iBusFiber.up at pcOffset of iBusArb
   // iBusFiber.up.setUpConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
   iBusArb at 0 of iBus
   iBusArb.setUpConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
@@ -346,7 +350,7 @@ case class MemoryMapSoc(
 
   val dBus = Node.down()
   val dBusFiber = TileLinkMemReadWriteFiber(mem.fastPort, withOutReg = memOutReg)
-  dBusFiber.up at 0 of dBusArb
+  dBusFiber.up at pcOffset of dBusArb
   dBusFiber.up.setUpConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
   dBusArb at 0 of dBus
   plugins += new execute.lsu.LsuCachelessTileLinkPlugin(dBus)
@@ -367,15 +371,15 @@ case class MemoryMapSoc(
 
     // envelope memory
     val pulseMemWa = WidthAdapter()
-    pulseMemWa.up at 0 of shareBus
+    pulseMemWa.up at pmAxiOffset of shareBus
     val pulseMemBus = Node()
     pulseMemBus at 0 of pulseMemWa.down
     pulseMemBus.setDownConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
 
     val pulseMemFibers = for (i <- 0 until qubitNum * 2) yield new Area {
       val pulseMemFiber = TileLinkMemReadWriteFiber(pulseMems(i).slowPort)
-      val offset = pulseOffset + (1 << 20) * i
-      println(s"!!!!!! pulseoffset: ${BigInt(offset).toString(16)}")
+      val offset = (1 << 20) * i
+      // println(s"!!!!!! pulseoffset: ${BigInt(offset).toString(16)}")
       pulseMemFiber.up at offset of pulseMemBus
       pulseMemFiber.up.setUpConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
     }
@@ -406,7 +410,7 @@ case class MemoryMapSoc(
   val dspConnectionArea = DspConnectionArea(qubitNum, pgs, pulseMems, cgs, rds)
 
   val mmFiber = MemMapRegFiber(pgs, cgs, rds)
-  mmFiber.up at 0 of dBusArb
+  mmFiber.up at SizeMapping(0, 0x10000000) of dBusArb
   mmFiber.up.setUpConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
 
   // dac and adc ports
@@ -420,29 +424,29 @@ case class MemoryMapSoc(
     d.ready := True
   }
 
-  val rbId = 0
-  val readoutBuffer = DualClockRam(width = 128, depth = 1024, slowCd = cd100m, fastCd = cd500m)
-  val rbLogic = Fiber build new ResetArea(riscqRst, false) {
-    val addr = Reg(readoutBuffer.fastPort.address) init 0
-    val valid = rds(rbId).io.demodData.valid
-    valid.simPublic()
-    when(valid) {
-      addr := addr + 1
-    }
+  // val rbId = 0
+  // val readoutBuffer = DualClockRam(width = 128, depth = 1024, slowCd = cd100m, fastCd = cd500m)
+  // val rbLogic = Fiber build new ResetArea(riscqRst, false) {
+  //   val addr = Reg(readoutBuffer.fastPort.address) init 0
+  //   val valid = rds(rbId).io.demodData.valid
+  //   valid.simPublic()
+  //   when(valid) {
+  //     addr := addr + 1
+  //   }
 
-    readoutBuffer.fastPort.enable := True
-    readoutBuffer.fastPort.mask.setAllTo(True)
-    readoutBuffer.fastPort.address := addr
-    readoutBuffer.fastPort.write := valid
-    readoutBuffer.fastPort.wdata := rds(rbId).io.demodData.payload.asBits
-  }
+  //   readoutBuffer.fastPort.enable := True
+  //   readoutBuffer.fastPort.mask.setAllTo(True)
+  //   readoutBuffer.fastPort.address := addr
+  //   readoutBuffer.fastPort.write := valid
+  //   readoutBuffer.fastPort.wdata := rds(rbId).io.demodData.payload.asBits
+  // }
 
-  val rbBusLogic = new ClockingArea(cd100m) {
-    val rbTlFiber = TileLinkMemReadWriteFiber(readoutBuffer.slowPort)
-    val rbTlWa = WidthAdapter()
-    rbTlWa.up at 0x0f000000L of shareBus
-    rbTlFiber.up at 0 of rbTlWa.down
-  }
+  // val rbBusLogic = new ClockingArea(cd100m) {
+  //   val rbTlFiber = TileLinkMemReadWriteFiber(readoutBuffer.slowPort)
+  //   val rbTlWa = WidthAdapter()
+  //   rbTlWa.up at 0x0f000000L of shareBus
+  //   rbTlFiber.up at 0 of rbTlWa.down
+  // }
 
 
   val test_adc = withTest generate (in port Vec.fill(qubitNum * 2)(pulse.ComplexBatch(batchSize = 4, dataWidth = 16)))
@@ -466,6 +470,22 @@ case class MemoryMapSoc(
     (rds zip test_adc).foreach { case (outs, ins) =>
       outs.io.adc := ins
     }
+  }
+
+  Fiber build new Area {
+    withTest generate tlBus.node.bus.get.simPublic()
+    iBus.bus.get.simPublic()
+    dBus.bus.get.simPublic()
+    dBusArb.bus.get.simPublic()
+    shareBus.bus.get.simPublic()
+
+    Fiber.awaitCheck()
+
+    // val path = PathTracer.impl(shareBus.bus.get.d.valid, tlBus.node.bus.get.d.valid)
+    // println(path.report())
+    // println(path.reportPaths())
+    // println(path.reportNodes())
+
   }
   
   def tlBusNode = {

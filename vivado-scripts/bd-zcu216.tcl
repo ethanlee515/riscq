@@ -85,8 +85,8 @@
     # connect_bd_net -net ${PS_RST_NAME}_peripheral_aresetn [get_bd_pins ${PS_RST}/peripheral_aresetn] [get_bd_pins ${AXI_CONNECT}/aresetn] [get_bd_pins ${RISCQ}/rst100m]
 
     # assign_bd_address
-    assign_bd_address -offset 0x80000000 -range 0x10000000 -target_address_space [get_bd_addr_spaces ${ZYNQ_PS}/Data] [get_bd_addr_segs ${RISCQ}/S_AXIS/reg0] -force
-    assign_bd_address -offset 0x90000000 -range 0x00000100 -target_address_space [get_bd_addr_spaces ${ZYNQ_PS}/Data] [get_bd_addr_segs ${AXI_GPIO}/S_AXI/Reg] -force
+    assign_bd_address -offset 0x80000000 -range 0x1fffff00 -target_address_space [get_bd_addr_spaces ${ZYNQ_PS}/Data] [get_bd_addr_segs ${RISCQ}/S_AXIS/reg0] -force
+    assign_bd_address -offset 0x9fffff00 -range 0x00000100 -target_address_space [get_bd_addr_spaces ${ZYNQ_PS}/Data] [get_bd_addr_segs ${AXI_GPIO}/S_AXI/Reg] -force
 
     validate_bd_design
 

@@ -25,6 +25,7 @@ import riscq.riscv.RS1
 import riscq.schedule.HazardPlugin
 import riscq.riscv.RS2
 import scala.collection.mutable.LinkedHashMap
+import riscq.soc.MemoryMapPlugins
 
 class WhiteboxerPlugin() extends FiberPlugin{
 

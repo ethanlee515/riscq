@@ -248,6 +248,7 @@ case class ReadoutDecoder(batchSize: Int, inWidth: Int, accWidth: Int, timeWidth
     val res = master port Flow(Bool())
     val demodData = master port Flow(Vec.fill(batchSize)(Complex(inWidth)))
   }
+  val resValid = Reg(Bool()) init False
 
   val timer = Reg(UInt(timeWidth bit))
   val compMul = List.fill(batchSize)(ComplexMul(inWidth))
@@ -284,9 +285,9 @@ case class ReadoutDecoder(batchSize: Int, inWidth: Int, accWidth: Int, timeWidth
   val fsm = new StateMachine {
     val idle = makeInstantEntry()
     idle.whenIsActive {
-      io.res.valid := True
       when(io.cmd.fire) {
         timer := io.cmd.payload
+        resValid := False
         goto(waitSampling)
       }
     }
@@ -303,6 +304,7 @@ case class ReadoutDecoder(batchSize: Int, inWidth: Int, accWidth: Int, timeWidth
     }
     val waitCmp = new StateDelay(cyclesCount = 3) {
       whenCompleted{
+        resValid := True
         exit()
       }
     }
