@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+clang -march=rv32i -nostdlib -Wl,-T,linker.ld -mno-relax testAlu.S -o testAlu.elf
