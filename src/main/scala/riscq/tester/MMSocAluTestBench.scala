@@ -4,27 +4,29 @@ import spinal.core._
 import spinal.core.sim._
 import spinal.lib._
 import riscq.soc.MemoryMapSoc
+import riscq.tester.RvAssembler
 
-class MMSocDriver(dut: MemoryMapSoc) {
-  val cd = dut.clockDomain
-
-  def init() = {
-    cd.forkStimulus(10)
-  }
-
-  def rstUp() = {
-    cd.assertReset()
-  }
-
-  def rstDown() = {
-    cd.deassertReset()
-  }
-}
-
-object TestMMSocAlu extends App {
-  SimConfig.compile(MemoryMapSoc(withWhitebox = true)).doSim { dut =>
+object TestAlu extends App {
+  val simConfig = SimConfig.addSimulatorFlag("-Wno-MULTIDRIVEN")
+  simConfig.compile(MemoryMapSoc(withWhitebox = true)).doSim { dut =>
     val driver = new MMSocDriver(dut)
+    val asm = new RvAssembler(32)
     driver.init()
     driver.rstUp()
+    val insts = List(
+      asm.addi(1, 0, 3),
+      asm.add(2, 1, 2),
+      asm.beq(0, 0, -2)
+    )
+    driver.loadInsts(insts)
+    dut.riscq_rst #= true
+    for(_ <- 0 until 10) {
+      driver.tick()
+    }
+    dut.riscq_rst #= false
+    for(_ <- 0 until 20) {
+      driver.logRf()
+      driver.tick()
+    }
   }
 }
