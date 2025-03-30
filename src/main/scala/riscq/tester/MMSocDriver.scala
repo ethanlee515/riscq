@@ -10,6 +10,7 @@ import java.io.File
 
 class MMSocDriver(dut: MemoryMapSoc) {
   val cd = dut.clockDomain
+  val cd100m = dut.cd100m
   val wb = dut.core.host[WhiteboxerPlugin].logic
 
   def loadInsts() = {
@@ -20,14 +21,17 @@ class MMSocDriver(dut: MemoryMapSoc) {
 
   def init() = {
     cd.forkStimulus(10)
+    cd100m.forkStimulus(10)
   }
 
   def rstUp() = {
     cd.assertReset()
+    cd100m.assertReset()
   }
 
   def rstDown() = {
     cd.deassertReset()
+    cd100m.deassertReset()
   }
 
   def tick() = {

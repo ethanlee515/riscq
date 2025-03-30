@@ -21,7 +21,7 @@ object TestAlu extends App {
 
     driver.rstDown()
     dut.riscq_rst #= false
-    for(_ <- 0 until 40) {
+    for(_ <- 0 until 100) {
       driver.logRf()
       driver.tick()
     }
