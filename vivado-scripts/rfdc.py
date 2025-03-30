@@ -1,10 +1,10 @@
 ids = [f'{i}'+f'{j}' for i in range(4) for j in range (4)]
 
 dac_map = {
-    'DAC0': '20',
-    'DAC1': '21',
-    'DAC2': '22',
-    'DAC3': '23'
+    'DAC0': '00',
+    'DAC1': '01',
+    'DAC2': '02',
+    'DAC3': '03'
 }
 
 adc_map = {

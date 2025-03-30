@@ -28,7 +28,7 @@ There are some reference implementations in VexiiRiscv. We can try to reproduce 
 - ✅ We have implemented some facilities that can use one line of code to map a hardware registers to the memory address space of the RISC-V processor.
   - ✅ We have mapped the parameters of the pulse generation (duration, frequency, phase, amplitude, envelope address) to some memory address, so that we can setup the pulse generator using original load/store instructions in RISC-V, without adding customized instructions.
   - ☑️ Readout modules will be implemented in this way soon, so that we can get the readout result by loading some memory address.
-  - By doing this, we can implement feedback control by reading the measurement result from `READOUT_ADDRESS` and send the result to some `PULSE_SELECTION_ADDRESS` to decide the feedback control in mid-circuit control without branching. This can save considerable cycles in a pipelined processor without the help of branch prediction.
+  - By doing this, we can implement feedback control by read the measurement result from `READOUT_ADDRESS` and send the result to some `PULSE_SELECTION_ADDRESS` to decide the feedback control in mid-circuit control without branching. This can save considerable cycles in a pipelined processor without the help of branch prediction.
   ```c
     int readout_result = *(READOUT_ADDRESS)
     *(PULSE_SELECTION_ADDRESS) = readout_result
@@ -61,3 +61,12 @@ Write C to program an experiment
 ## Documentation
 - Maybe it is time to write some documentation
 - [QICK reference](https://github.com/meeg/qick_demos_sho/tree/main/tprocv2)
+
+##
+
+measurement
+
+histogram
+
+raw data
+

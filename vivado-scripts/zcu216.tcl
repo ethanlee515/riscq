@@ -9,9 +9,9 @@ global BUILD_PREFIX
 set BOARD zcu216
 set DSP_PERIOD 2.000
 set DSP_FREQ 500000000
-set TOP_MODULE QubicSoc
+set TOP_MODULE MemoryMapSoc
 set SOURCE_PATH ../build/rtl
-set SCRIPT_PATH ./
+set SCRIPT_PATH ../vivado-scripts
 set BUILD_PREFIX "../build"
 
 proc create {SUFFIX} {

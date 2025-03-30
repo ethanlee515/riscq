@@ -94,10 +94,11 @@ class HazardPlugin(rfReadAt: Int = -1, hazardAt: Int = -1, enableBypass: Boolean
           val hazardFrom = rfReadAt + 1
           val hazardUntil = rdBroadcastedFromMax
           val hazardRange = hazardFrom until hazardUntil
+          println(s"!!!!!!!!!!!!!###########$hazardRange")
           val hazards = for(id <- hazardRange) yield {
             val node = pp.execute(id)
             if(enableBypass) {
-              node(rdKeys.ENABLE) && node(rdKeys.PHYS) === hazardCtrl(rs.PHYS) && !node(getBypassed(id+1)) && node.isValid
+              node(rdKeys.ENABLE) && node(rdKeys.PHYS) === hazardCtrl(rs.PHYS) && !node(getBypassed(id + rfReadAt - hazardAt)) && node.isValid
             } else {
               node(rdKeys.ENABLE) && node(rdKeys.PHYS) === hazardCtrl(rs.PHYS) && node.isValid
             }

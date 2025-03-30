@@ -5,6 +5,8 @@ import spinal.lib._
 import spinal.lib.eda.bench.Rtl
 import spinal.lib.eda.bench.Bench
 import riscq.misc.XilinxRfsocTarget
+import riscq.memory.DualClockRam
+import riscq.memory.DualClockRamTest
 
 object ManyRegs extends App {
   case class ManyRegs(n: Int) extends Component {
@@ -258,4 +260,15 @@ object BenchCordic extends App {
     Cordic(param)
   ))
   Bench(List(rtl), XilinxRfsocTarget(1000 MHz), "./build/")
+}
+
+object BramOutRegInfer extends App {
+  val rtl = Rtl(SpinalVerilog{ new Component{
+    val cd = ClockDomain.current
+    val bram = DualClockRamTest(32, 1024, cd, cd, true, true)
+    val slowPort = slave port cloneOf(bram.slowPort)
+    slowPort <> bram.slowPort
+  }
+  })
+  Bench(List(rtl), XilinxRfsocTarget(1000 MHz), "./bench/")
 }
