@@ -26,6 +26,10 @@ class MMSocDriver(dut: MemoryMapSoc) {
     cd.assertReset()
   }
 
+  def rstDown() = {
+    cd.deassertReset()
+  }
+
   def tick() = {
     cd.waitRisingEdge(1)
   }

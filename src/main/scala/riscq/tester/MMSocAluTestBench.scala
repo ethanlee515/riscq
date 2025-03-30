@@ -15,11 +15,13 @@ object TestAlu extends App {
     driver.rstUp()
 
     dut.riscq_rst #= true
-    for(_ <- 0 until 10) {
+    for(_ <- 0 until 15) {
       driver.tick()
     }
+
+    driver.rstDown()
     dut.riscq_rst #= false
-    for(_ <- 0 until 20) {
+    for(_ <- 0 until 40) {
       driver.logRf()
       driver.tick()
     }
