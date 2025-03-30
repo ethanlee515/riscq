@@ -19,8 +19,7 @@ object BarrelShifterPlugin extends AreaObject {
  * Implements the RISC-V integer shift instructions
  * use a single left barrel shifter pre/post bit reverse for right shifts
  */
-class BarrelShifterPlugin(var with_slli_uw: Boolean = false,
-                          var shiftAt : Int = 0,
+class BarrelShifterPlugin(var shiftAt : Int = 0,
                           var formatAt : Int = 0) extends ExecutionUnit {
   import BarrelShifterPlugin._
   val SHIFT_RESULT = Payload(Bits(Riscv.XLEN bits))

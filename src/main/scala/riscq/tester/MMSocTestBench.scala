@@ -66,6 +66,12 @@ class Driver(dut: MemoryMapSoc) {
     cd.waitRisingEdge(t)
   }
 
+  def waitUntil(t: Int) = {
+    while(dutTime < t) {
+      tick()
+    }
+  }
+
   def logRf() = {
     val n = wb.rf.mem.wordCount
     val res = (0 until n).map { x => wb.rf.mem.getBigInt(x).toString() }.toList
@@ -126,14 +132,18 @@ class Driver(dut: MemoryMapSoc) {
   def logCarrier(n: Int) = {
     val carrier = dut.cgs(n).io.carrier
     val data = carrier.payload.map { _.r.toDouble * (1 << 14) }.toList
+    println(s"carrier ev: v: ${dut.cgs(n).io.cmd.valid.toBoolean}, freq: ${dut.cgs(n).io.cmd.payload.freq.toDouble}, phase: ${dut.cgs(n).io.cmd.payload.phase.toDouble}")
     println(s"${data}")
   }
 
+  def dutTime = dut.mmFiber.logic.time.toBigInt
+
   def logTime() = {
-    val time = dut.mmFiber.logic.time.toBigInt
+    val time = dutTime
     println(s"time: $time")
   }
 
+  def FREQ_GHZ(f: Double) = (f * (1 << 13)).toInt
 }
 
 object MMSocTestConfig {
@@ -147,7 +157,7 @@ object TestMMSocPulse extends App {
   simConfig
     .compile {
       val dut = MemoryMapSoc(
-        qubitNum = 8,
+        qubitNum = 4,
         withVivado = false,
         withCocotb = false,
         withWhitebox = true,
@@ -171,12 +181,13 @@ object TestMMSocPulse extends App {
         val batch = List.fill(batchSize)(dt)
         val batchData = riscq.pulse.PGTestPulse.concat(batch, dataWidth)
         val dataStr = batch.map { x => ByteHelper.intToBinStr(x, dataWidth) }.reduce { _ ++ _ }
-        tlDriver.putFullData(0, dut.pmAxiOffset + i * batchSize * dataWidth / 8, ByteHelper.fromBinStr(dataStr).reverse)
+        tlDriver.putFullData(0, dut.pmAxiOffset + (1 << 21) + i * batchSize * dataWidth / 8, ByteHelper.fromBinStr(dataStr).reverse)
+        // axi4Driver.write(dut.pmAxiOffset + i * batchSize * dataWidth / 8, ByteHelper.fromBinStr(dataStr).reverse.toList)
       }
       cd100m.waitRisingEdge()
 
 
-      val elfFile = new File("compiler-scripts/test.elf")
+      val elfFile = new File("compiler-scripts/pg_test.elf")
       val elf = new Elf(elfFile, addressWidth = 32)
       elf.load(dut.mem.mem, -0x80000000)
 
@@ -193,8 +204,19 @@ object TestMMSocPulse extends App {
         override def onD(d: TransactionD) = {println(s"!!!!!!!${simTime()}");println(d)}
       })
 
-      tick(20)
-      for (i <- 0 until 120) {
+      tick(30)
+      for(t <- 100 until 500 by 100) {
+        waitUntil(t - 1)
+        for(i <- 0 until 10) {
+          logTime()
+          logDac(1)
+          logCarrier(1)
+          tick()
+        }
+      }
+        
+      // waitUntil(99)
+      for (i <- 0 until 10) {
         // println(s"${dut.mem.mem.getBigInt(0).toString(16)}")
         // println(s"${dut.mem.mem.getBigInt(0x1d).toString(16)}")
         // println(s"${dut.mmFiber.logic.cgParams(0).cgIo.freq.toDouble}")
@@ -202,36 +224,97 @@ object TestMMSocPulse extends App {
         logTime()
         // logBranch()
         // logHazard()
-        logPcs()
+        // logPcs()
         // logSrc()
         // logExInsts()
-        logDac(0)
-        // logCarrier(0)
+        logDac(2)
         println("")
         tick()
       }
     }
 }
 
-object TestLoadElf extends App {
-  val file = new File("compiler-scripts/test.elf")
-  val offset = 0
-  val addressWidth = 32
-  val elf = new Elf(file, addressWidth)
-  elf.foreachSection { section =>
-    if ((section.header.sh_flags & ElfSectionHeader.FLAG_ALLOC) != 0) {
-      println(f"${section.header.getName}")
-      val data = elf.getData(section)
-      val memoryAddress = (section.header.sh_addr - offset) & ((BigInt(1) << addressWidth) - 1).toLong
-      println(s"addr: ${memoryAddress.toHexString},")
-      for (d <- data) {
-        val unsigned = d.toInt & 0xff
-        val res = f"${unsigned}%02X"
-        print(s"${res} ")
-      }
-      print("\n\n")
-    }
-  }
-  // val content = elf.getMemInit(fakeComp.mem, 0)
-  // println(s"${content}")
-}
+// object TestMMSocReadout extends App {
+//   import MMSocTestConfig._
+//   simConfig
+//     .compile {
+//       val dut = MemoryMapSoc(
+//         qubitNum = 8,
+//         withVivado = false,
+//         withCocotb = false,
+//         withWhitebox = true,
+//         withTest = true
+//       ) 
+//       dut.pgs.map { _.io.simPublic() }
+//       dut.cgs.map { _.io.simPublic() }
+//       dut
+//     }
+//     .doSim { dut =>
+//       val driver = new Driver(dut)
+//       import driver._
+
+//       init()
+
+//       val adc_id = 0
+//       val freq = 1.0 / 100
+//       val amp = 1.0
+//       val batchSize = 4
+//       val adcLogic = fork {
+//         val phaseAdc = 0.0
+//         while(true) {
+//           for(i <- 0 until batchSize) {
+//             val time = dutTime - 19
+//             val ar = math.cos((time * batchSize + i).toDouble * freq * math.Pi + phaseAdc)
+//             val ai = -math.sin((time * batchSize + i).toDouble * freq * math.Pi + phaseAdc)
+//             dut.test_adc(adc_id)(i).r #= ar * amp
+//             dut.test_adc(adc_id)(i).i #= ai * amp
+//           }
+//           cd.waitSampling()
+//         }
+//       }
+
+//       val elfFile = new File("compiler-scripts/rd_test.elf")
+//       val elf = new Elf(elfFile, addressWidth = 32)
+//       elf.load(dut.mem.mem, -0x80000000)
+
+//       val startTime = 50
+
+//       dut.riscq_rst #= true
+//       tick(10)
+//       dut.riscq_rst #= false
+
+//       // val monitor = new Monitor(dut.dBus.bus, cd)
+//       // val pcReset = 0x80000000l
+//       // monitor.add(new MonitorSubscriber {
+//       //   override def onA(a: TransactionA) = {println(s"${simTime()}"); println(a)}
+//       //   override def onD(d: TransactionD) = {println(s"!!!!!!!${simTime()}");println(d)}
+//       // })
+
+//       tick(40)
+//       for(t <- 100 until 500 by 100) {
+//         waitUntil(t - 1)
+//         for(i <- 0 until 10) {
+//           logTime()
+//           logDac(0)
+//           tick()
+//         }
+        
+//       }
+//       for (i <- 0 until 10) {
+//         // println(s"${dut.mem.mem.getBigInt(0).toString(16)}")
+//         // println(s"${dut.mem.mem.getBigInt(0x1d).toString(16)}")
+//         // println(s"${dut.mmFiber.logic.cgParams(0).cgIo.freq.toDouble}")
+//         // println(s"bypass: ${wb.hazard.bypass_1.map{case (id, data) => (id, data.toBoolean)}}")
+//         logTime()
+//         // logBranch()
+//         // logHazard()
+//         // logPcs()
+//         // logSrc()
+//         // logExInsts()
+//         logDac(2)
+//         // logCarrier(0)
+//         println("")
+//         tick()
+//       }
+//     }
+// }

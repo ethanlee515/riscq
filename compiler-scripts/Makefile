@@ -12,7 +12,7 @@ TGTS := $(SRCS:.c=.elf)
 .PHONY: all
 
 all: $(TGTS)
-	llvm-objdump -d test.elf
+	llvm-objdump -d pg_test.elf
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@ 

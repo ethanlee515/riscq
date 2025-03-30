@@ -61,3 +61,12 @@ Write C to program an experiment
 ## Documentation
 - Maybe it is time to write some documentation
 - [QICK reference](https://github.com/meeg/qick_demos_sho/tree/main/tprocv2)
+
+##
+
+measurement
+
+histogram
+
+raw data
+
