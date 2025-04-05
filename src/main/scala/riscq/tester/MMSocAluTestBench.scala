@@ -9,7 +9,7 @@ import riscq.tester.RvAssembler
 object TestAlu extends App {
   val simConfig = SimConfig.addSimulatorFlag("-Wno-MULTIDRIVEN")
   simConfig.compile(MemoryMapSoc(withWhitebox = true)).doSim { dut =>
-    val driver = new MMSocDriver(dut)
+    val driver = new MMSocDriver(dut, "testAlu.elf")
     driver.loadInsts()
     driver.init()
     driver.rstUp()
@@ -21,7 +21,7 @@ object TestAlu extends App {
 
     driver.rstDown()
     dut.riscq_rst #= false
-    for(_ <- 0 until 100) {
+    for(_ <- 0 until 25) {
       driver.logRf()
       driver.tick()
     }

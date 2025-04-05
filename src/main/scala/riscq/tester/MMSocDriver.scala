@@ -8,13 +8,13 @@ import riscq.test.WhiteboxerPlugin
 import spinal.lib.misc.Elf
 import java.io.File
 
-class MMSocDriver(dut: MemoryMapSoc) {
+class MMSocDriver(dut: MemoryMapSoc, elfFileName : String) {
   val cd = dut.clockDomain
   val cd100m = dut.cd100m
   val wb = dut.core.host[WhiteboxerPlugin].logic
 
   def loadInsts() = {
-    val elfFile = new File("src/main/asm/testAlu.elf")
+    val elfFile = new File("src/main/asm/" + elfFileName)
     val elf = new Elf(elfFile, addressWidth = 32)
     elf.load(dut.mem.mem, -0x80000000)
   }
