@@ -355,7 +355,7 @@ case class MemoryMapSoc(
 
   val riscq_rst = in Bool ()
   // val riscqRst = RegNext(RegNext(riscq_rst))
-  val riscqRst = BufferCC(riscq_rst)
+  val riscqRst = riscq_rst
   riscqRst.addAttribute("MAX_FANOUT", "128")
 
   val axiConfig = Axi4Config(

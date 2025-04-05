@@ -11,18 +11,10 @@ object TestAlu extends App {
   simConfig.compile(MemoryMapSoc(withWhitebox = true)).doSim { dut =>
     val driver = new MMSocDriver(dut, "testAlu.elf")
     driver.init()
-    driver.loadInsts()
-    driver.cd100m.waitRisingEdge()
     driver.rstUp()
-
-    dut.riscq_rst #= true
-    for(_ <- 0 until 15) {
-      driver.tick()
-    }
-
+    driver.tick(50)
+    driver.loadInsts()
     driver.rstDown()
-    dut.riscq_rst #= false
-    driver.logPcs()
     println("starting simulation...")
     for(_ <- 0 until 25) {
       driver.logRf()

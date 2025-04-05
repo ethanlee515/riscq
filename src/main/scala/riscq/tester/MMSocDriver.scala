@@ -12,10 +12,47 @@ import spinal.lib.bus.tilelink.sim._
 import spinal.lib.bus.tilelink._
 import riscq._
 
-class MMSocDriver(dut: MemoryMapSoc, elfFileName : String) extends Driver(dut) {
+class MMSocDriver(dut: MemoryMapSoc, elfFileName : String) {
+  val cd = dut.clockDomain
+  val cd100m = dut.cd100m
+  val wb = dut.core.host[test.WhiteboxerPlugin].logic
+
+  def init() = {
+    val axi4Driver = Axi4Master(dut.axi, cd100m)
+    axi4Driver.reset()
+    cd.forkStimulus(10)
+    cd100m.forkStimulus(50)
+
+    rstUp()
+    cd100m.waitRisingEdge(10)
+    rstDown()
+  }
+
+  def rstUp() = {
+    cd.assertReset()
+    cd100m.assertReset()
+    dut.riscq_rst #= true
+  }
+
+  def rstDown() = {
+    cd.deassertReset()
+    cd100m.deassertReset()
+    dut.riscq_rst #= false
+  }
+
   def loadInsts() = {
     val elfFile = new File("src/main/asm/" + elfFileName)
     val elf = new Elf(elfFile, addressWidth = 32)
     elf.load(dut.mem.mem, -0x80000000)
+  }
+
+  def tick(t: Int = 1) = {
+    cd.waitRisingEdge(t)
+  }
+
+  def logRf() = {
+    val n = wb.rf.mem.wordCount
+    val res = (0 until n).map { x => wb.rf.mem.getBigInt(x).toString() }.toList
+    println(s"rf: ${res}")
   }
 }
