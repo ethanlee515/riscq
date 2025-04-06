@@ -185,6 +185,7 @@ case class MemMapRegFiber(
     timeFactory.readAndWrite(timeCmp, timeCmpAddr)
     val delay = 3
     val waitTimeCmp = RegNext(time + delay < timeCmp)
+    timeFactory.read(waitTimeCmp, timeCmpAddr + 8)
     timeFactory.onReadPrimitive(SingleMapping(timeCmpAddr + 8), haltSensitive = false, null) {
       when(waitTimeCmp) {
         timeFactory.readHalt()
@@ -290,7 +291,7 @@ object MMSocParams {
     plugins += new execute.IntAluPlugin(executeAt = 0, formatAt = 0)
     plugins += new execute.BarrelShifterPlugin(shiftAt = 0, formatAt = 0)
     plugins += new execute.BranchPlugin(aluAt = 0, jumpAt = 1, wbAt = 0)
-    plugins += new execute.lsu.LsuCachelessPlugin(addressAt = 0, forkAt = 0, joinAt = 1, wbAt = 2)
+    plugins += new execute.lsu.LsuCachelessNoStoreRspPlugin(addressAt = 0, forkAt = 0, joinAt = 1, wbAt = 2)
   }
 }
 
@@ -394,7 +395,7 @@ case class MemoryMapSoc(
   dBusFiber.up at pcOffset of dBusArb
   // dBusFiber.up.setUpConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
   dBusArb at 0 of dBus
-  plugins += new execute.lsu.LsuCachelessTileLinkPlugin(dBus)
+  plugins += new execute.lsu.LsuCachelessNoStoreRspTileLinkPlugin(dBus)
 
   val cd100mLogic = new ClockingArea(cd100m) {
     // blockSize is the maximal bytes that can be transfered in a transaction, which could takes multiple bits
@@ -559,6 +560,7 @@ case class MemoryMapSoc(
     dBus.bus.get.simPublic()
     dBusArb.bus.get.simPublic()
     shareBus.bus.get.simPublic()
+    mmFiber.up.bus.get.simPublic()
 
     Fiber.awaitCheck()
 

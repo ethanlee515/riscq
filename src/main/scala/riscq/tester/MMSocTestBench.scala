@@ -185,36 +185,16 @@ object TestMMSocPulse extends App {
       tick(10)
       dut.riscq_rst #= false
 
-      val monitor = new Monitor(dut.dBus.bus, cd)
-      val pcReset = 0x80000000L
-      monitor.add(new MonitorSubscriber {
-        override def onA(a: TransactionA) = { println(s"${dutTime}"); println(a) }
-        override def onD(d: TransactionD) = { println(s"${dutTime}"); println(d) }
-      })
-      val mmMonitor = new Monitor(dut.mmFiber.up.bus.get, cd)
-      mmMonitor.add(new MonitorSubscriber {
-        override def onA(a: TransactionA) = { println(s"m${dutTime}"); println(a) }
-        override def onD(d: TransactionD) = { println(s"m!!!!!!!${dutTime}"); println(d) }
-      })
-
+      // val monitor = new Monitor(dut.dBus.bus, cd)
+      // val pcReset = 0x80000000L
+      // monitor.add(new MonitorSubscriber {
+      //   override def onA(a: TransactionA) = { println(s"${dutTime}"); println(a) }
+      //   override def onD(d: TransactionD) = { println(s"${dutTime}"); println(d) }
+      // })
       tick()
       logRf()
 
-      // for(t <- 0 until 100) {
-      //   logTime()
-      //   logExInsts()
-      //   tick()
-      // }
-
-
-
       tick(30)
-      // waitUntil(230) 
-      // for(t <- 0 until 20) {
-      //   logTime()
-      //   logExInsts()
-      //   tick()
-      // }
       for (t <- 100 until 500 by 100) {
         waitUntil(t - 1)
         for (i <- 0 until 6) {
