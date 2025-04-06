@@ -10,6 +10,7 @@ case class TimedQueue[T <: Data](
   depth: Int,
   timeWidth: Int
 ) extends Component {
+  val latency = 1 // time between io.tiem >= startTime and io.pop.valid = true
   val timedData = HardType(new Bundle {
     val data = dataType()
     val startTime = UInt(timeWidth bit)
@@ -28,7 +29,10 @@ case class TimedQueue[T <: Data](
     useVec = true
   )
 
-  val doPop = RegNext(io.time === fifo.io.pop.startTime)
+  // val doPop = RegNext(io.time === fifo.io.pop.startTime)
+  val timeUp = RegNext(io.time >= fifo.io.pop.startTime)
+  val popped = RegNext(timeUp)
+  val doPop = timeUp && ~popped
   fifo.io.push << io.push
   fifo.io.pop.ready := doPop // && io.pop.ready
   io.pop.payload := fifo.io.pop.data

@@ -20,17 +20,22 @@ import riscq.riscv.{Rvi, IntRegFile}
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-object AddressToMask{
-  def apply(address : UInt, size : UInt, width : Int) : Bits ={
-    size.muxListDc((0 to log2Up(width)).map(i => U(i) -> B((1 << (1 << i)) -1, width bits))) |<< address(log2Up(width)-1 downto 0)
+object AddressToMask {
+  def apply(address: UInt, size: UInt, width: Int): Bits = {
+    size.muxListDc((0 to log2Up(width)).map(i => U(i) -> B((1 << (1 << i)) - 1, width bits))) |<< address(
+      log2Up(width) - 1 downto 0
+    )
   }
 }
 
 class LsuCachelessPlugin(
-                         var addressAt: Int = 0,
-                         var forkAt: Int = 0,
-                         var joinAt: Int = 1,
-                         var wbAt: Int = 2) extends ExecutionUnit with DBusAccessService with LsuCachelessBusProvider{
+    var addressAt: Int = 0,
+    var forkAt: Int = 0,
+    var joinAt: Int = 1,
+    var wbAt: Int = 2
+) extends ExecutionUnit
+    with DBusAccessService
+    with LsuCachelessBusProvider {
 
   val WITH_RSP = Payload(Bool())
   override def accessRefillCount: Int = 0
@@ -44,7 +49,7 @@ class LsuCachelessPlugin(
     pendingMax = bufferSize
   )
 
-  val logic = during setup new Area{
+  val logic = during setup new Area {
     val pp = host[PipelinePlugin]
     val ifp = host[IntFormatPlugin]
     val srcp = host[SrcPlugin]
@@ -55,8 +60,7 @@ class LsuCachelessPlugin(
 
     awaitBuild()
 
-
-    val LOAD  = Payload(Bool())
+    val LOAD = Payload(Bool())
     val STORE = Payload(Bool())
     val SIZE = Payload(UInt(2 bits))
     val FLOAT = Payload(Bool())
@@ -76,7 +80,7 @@ class LsuCachelessPlugin(
         case true  => ifp.signExtend(iwb, op, spec.width)
       }
       // op.mayFlushUpTo(forkAt) // page fault / trap
-      op.dontFlushFrom(forkAt+1)
+      op.dontFlushFrom(forkAt + 1)
     }
 
     // Store stuff
@@ -110,17 +114,20 @@ class LsuCachelessPlugin(
     val forkCtrl = pp.execute(forkAt)
     val joinCtrl = pp.execute(joinAt)
     val wbCtrl = pp.execute(wbAt)
+    for (i <- forkAt to joinAt) {
+      pp.execute(i)
+    }
 
     val bus = master(LsuCachelessBus(busParam)).simPublic()
 
     accessRetainer.await()
 
     val rrp = host[RegReadPlugin]
-    val onFirst = new pp.Execute(0){
+    val onFirst = new pp.Execute(0) {
       val WRITE_DATA = insert(down(rrp(IntRegFile, riscv.RS2)))
     }
 
-    val onAddress = new addressCtrl.Area{
+    val onAddress = new addressCtrl.Area {
       val RAW_ADDRESS = insert(srcp.ADD_SUB.asUInt)
 
       val MISS_ALIGNED = insert((1 to log2Up(LSLEN / 8)).map(i => SIZE === i && RAW_ADDRESS(i - 1 downto 0) =/= 0).orR)
@@ -128,36 +135,36 @@ class LsuCachelessPlugin(
 
     val cmdInflights = Bool()
 
-    val onFork = new forkCtrl.Area{
+    val onFork = new forkCtrl.Area {
       val skip = False
 
       val cmdCounter = Counter(bufferSize, bus.cmd.fire)
-      val cmdSent = RegInit(False) setWhen(bus.cmd.fire) clearWhen(down.isMoving)
+      val cmdSent = RegInit(False) setWhen (bus.cmd.fire) clearWhen (down.isMoving)
       bus.cmd.assertPersistence()
       bus.cmd.valid := isValid && SEL && !cmdSent && !forkCtrl.up.isCancel && !skip // && !doFence
       bus.cmd.id := cmdCounter
       bus.cmd.write := STORE
       bus.cmd.address := onAddress.RAW_ADDRESS
-      val mapping = (0 to log2Up(Riscv.LSLEN / 8)).map{size =>
+      val mapping = (0 to log2Up(Riscv.LSLEN / 8)).map { size =>
         val w = (1 << size) * 8
         size -> onFirst.WRITE_DATA(0, w bits).#*(Riscv.LSLEN / w) // !!! use with mask
       }
       bus.cmd.data := bus.cmd.size.muxListDc(mapping)
       bus.cmd.size := SIZE.resized
-      bus.cmd.mask := AddressToMask(bus.cmd.address, bus.cmd.size, Riscv.LSLEN/8)
+      bus.cmd.mask := AddressToMask(bus.cmd.address, bus.cmd.size, Riscv.LSLEN / 8)
 
       val freezeIt = bus.cmd.isStall
       haltWhen(freezeIt)
 
-      when(onAddress.MISS_ALIGNED){
+      when(onAddress.MISS_ALIGNED) {
         skip := True
       }
 
       WITH_RSP := bus.cmd.valid || cmdSent
     }
 
-    val onJoin = new joinCtrl.Area{
-      val buffers = List.fill(bufferSize)(new Area{
+    val onJoin = new joinCtrl.Area {
+      val buffers = List.fill(bufferSize)(new Area {
         val valid = RegInit(False)
         val inflight = RegInit(False)
         val payload = Reg(LsuCachelessRsp(bus.p, false))
@@ -171,8 +178,8 @@ class LsuCachelessPlugin(
           b.inflight := True
         }
       }
-      when(bus.rsp.valid){
-        buffers.onSel(bus.rsp.id){b =>
+      when(bus.rsp.valid) {
+        buffers.onSel(bus.rsp.id) { b =>
           b.valid := True
           b.inflight := False
           b.payload := busRspWithoutId
@@ -182,7 +189,7 @@ class LsuCachelessPlugin(
       val rspCounter = Counter(bufferSize, pop)
       val reader = buffers.reader(rspCounter)
       val readerValid = reader(_.valid)
-      when(pop){
+      when(pop) {
         buffers.onSel(rspCounter)(_.valid := False)
       }
 
@@ -194,22 +201,22 @@ class LsuCachelessPlugin(
       haltWhen(WITH_RSP && !rspValid)
     }
 
-    for(eid <- forkAt + 1 to joinAt) {
+    for (eid <- forkAt + 1 to joinAt) {
       pp.execute(eid).up(WITH_RSP).setAsReg().init(False)
     }
 
     val onWb = new wbCtrl.Area {
       val rspSplits = onJoin.READ_DATA.subdivideIn(8 bits)
       val rspShifted = Bits(LSLEN bits)
-      val wordBytes = LSLEN/8
+      val wordBytes = LSLEN / 8
 
-      //For alignment
-      //Generate minimal mux to move from a wide aligned memory read to the register file shifter representation
+      // For alignment
+      // Generate minimal mux to move from a wide aligned memory read to the register file shifter representation
       for (i <- 0 until wordBytes) {
         val srcSize = 1 << (log2Up(wordBytes) - log2Up(i + 1))
         val srcZipped = rspSplits.zipWithIndex.filter { case (v, b) => b % (wordBytes / srcSize) == i }
         val src = srcZipped.map(_._1)
-        val range = log2Up(wordBytes)-1 downto log2Up(wordBytes) - log2Up(srcSize)
+        val range = log2Up(wordBytes) - 1 downto log2Up(wordBytes) - log2Up(srcSize)
         val sel = srcp.ADD_SUB(range).asUInt
         rspShifted(i * 8, 8 bits) := src.read(sel)
       }

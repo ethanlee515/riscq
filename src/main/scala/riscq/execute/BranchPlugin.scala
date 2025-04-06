@@ -22,16 +22,14 @@ object BranchPlugin extends AreaObject {
   val BranchCtrlEnum = new SpinalEnum(binarySequential) {
     val B, JAL, JALR = newElement()
   }
-  val BRANCH_CTRL =  Payload(BranchCtrlEnum())
+  val BRANCH_CTRL = Payload(BranchCtrlEnum())
 }
 
-
 class BranchPlugin(
-                   var aluAt : Int = 0,
-                   var jumpAt: Int = 1,
-                   var wbAt: Int = 0,
-                   ) extends ExecutionUnit // with LearnSource 
-                   {
+    var aluAt: Int = 0,
+    var jumpAt: Int = 1,
+    var wbAt: Int = 0
+) extends ExecutionUnit { // with LearnSource
   import BranchPlugin._
 
   def catchMissaligned = !Riscv.RVC
@@ -49,21 +47,21 @@ class BranchPlugin(
 
     import SrcKeys._
 
-    addUop(Rvi.JAL ).decode(BRANCH_CTRL -> BranchCtrlEnum.JAL )
+    addUop(Rvi.JAL).decode(BRANCH_CTRL -> BranchCtrlEnum.JAL)
     addUop(Rvi.JALR).decode(BRANCH_CTRL -> BranchCtrlEnum.JALR).srcs(SRC1.RF)
-    addUop(Rvi.BEQ ).decode(BRANCH_CTRL -> BranchCtrlEnum.B   ).srcs(SRC1.RF, SRC2.RF)
-    addUop(Rvi.BNE ).decode(BRANCH_CTRL -> BranchCtrlEnum.B   ).srcs(SRC1.RF, SRC2.RF)
-    addUop(Rvi.BLT ).decode(BRANCH_CTRL -> BranchCtrlEnum.B   ).srcs(SRC1.RF, SRC2.RF, Op.LESS  )
-    addUop(Rvi.BGE ).decode(BRANCH_CTRL -> BranchCtrlEnum.B   ).srcs(SRC1.RF, SRC2.RF, Op.LESS  )
-    addUop(Rvi.BLTU).decode(BRANCH_CTRL -> BranchCtrlEnum.B   ).srcs(SRC1.RF, SRC2.RF, Op.LESS_U)
-    addUop(Rvi.BGEU).decode(BRANCH_CTRL -> BranchCtrlEnum.B   ).srcs(SRC1.RF, SRC2.RF, Op.LESS_U)
+    addUop(Rvi.BEQ).decode(BRANCH_CTRL -> BranchCtrlEnum.B).srcs(SRC1.RF, SRC2.RF)
+    addUop(Rvi.BNE).decode(BRANCH_CTRL -> BranchCtrlEnum.B).srcs(SRC1.RF, SRC2.RF)
+    addUop(Rvi.BLT).decode(BRANCH_CTRL -> BranchCtrlEnum.B).srcs(SRC1.RF, SRC2.RF, Op.LESS)
+    addUop(Rvi.BGE).decode(BRANCH_CTRL -> BranchCtrlEnum.B).srcs(SRC1.RF, SRC2.RF, Op.LESS)
+    addUop(Rvi.BLTU).decode(BRANCH_CTRL -> BranchCtrlEnum.B).srcs(SRC1.RF, SRC2.RF, Op.LESS_U)
+    addUop(Rvi.BGEU).decode(BRANCH_CTRL -> BranchCtrlEnum.B).srcs(SRC1.RF, SRC2.RF, Op.LESS_U)
     SEL.setName("branch_SEL")
 
     val jList = List(Rvi.JAL, Rvi.JALR)
     val bList = List(Rvi.BEQ, Rvi.BNE, Rvi.BLT, Rvi.BGE, Rvi.BLTU, Rvi.BGEU)
 
     val wb = wbp.createPort(wbAt)
-    for(j <- jList; spec = uopSpecs(j)) {
+    for (j <- jList; spec = uopSpecs(j)) {
       wbp.addMicroOp(wb, spec)
       spec.mayFlushUpTo(jumpAt)
     }
@@ -97,9 +95,8 @@ class BranchPlugin(
       )
 
       val PC_TRUE = insert(U(target_a + target_b).resize(PC_WIDTH));
-      PC_TRUE(0) := False //PC RESIZED
+      PC_TRUE(0) := False // PC RESIZED
       val PC_FALSE = insert(PC + U(Fetch.WORD_BYTES))
-
 
       // Without those keepattribute, Vivado will transform the logic in a way which will serialize the 32 bits of the COND comparator,
       // with the 32 bits of the TRUE/FALSE adders, ending up in a quite long combinatorial path (21 lut XD)
@@ -114,24 +111,26 @@ class BranchPlugin(
       val ss = SrcStageables
       val EQ = insert(srcp.SRC1 === srcp.SRC2)
 
-      val COND = insert(BRANCH_CTRL.mux(
-        BranchCtrlEnum.JALR -> True,
-        BranchCtrlEnum.JAL -> True,
-        BranchCtrlEnum.B -> Decode.INSTRUCTION(14 downto 12).mux[Bool](
-          B"000" ->  EQ,
-          B"001" -> !EQ,
-          M"1-1" -> !srcp.LESS,
-          default -> srcp.LESS
+      val COND = insert(
+        BRANCH_CTRL.mux(
+          BranchCtrlEnum.JALR -> True,
+          BranchCtrlEnum.JAL -> True,
+          BranchCtrlEnum.B -> Decode
+            .INSTRUCTION(14 downto 12)
+            .mux[Bool](
+              B"000" -> EQ,
+              B"001" -> !EQ,
+              M"1-1" -> !srcp.LESS,
+              default -> srcp.LESS
+            )
         )
-      ))
+      )
 
     }
 
     val jumpLogic = new pp.Execute(jumpAt) {
       val doIt = isValid && SEL && alu.COND
       val pcTarget = PC_TRUE
-
-
 
       pcPort.valid := doIt
       pcPort.pc := pcTarget
@@ -141,16 +140,15 @@ class BranchPlugin(
 
       val MISSALIGNED = insert(PC_TRUE(0, Fetch.PC_LOW bits) =/= 0 && alu.COND)
 
-
       val IS_JAL = insert(BRANCH_CTRL === BranchCtrlEnum.JAL)
       val IS_JALR = insert(BRANCH_CTRL === BranchCtrlEnum.JALR)
-      val rdLink  = List[Bits](1,5).map(Decode.INSTRUCTION(Const.rdRange) === _).orR
-      val rs1Link = List[Bits](1,5).map(Decode.INSTRUCTION(Const.rs1Range) === _).orR
+      val rdLink = List[Bits](1, 5).map(Decode.INSTRUCTION(Const.rdRange) === _).orR
+      val rs1Link = List[Bits](1, 5).map(Decode.INSTRUCTION(Const.rs1Range) === _).orR
       val rdEquRs1 = Decode.INSTRUCTION(Const.rdRange) === Decode.INSTRUCTION(Const.rs1Range)
 
     }
 
-    val wbLogic = new pp.Execute(wbAt){
+    val wbLogic = new pp.Execute(wbAt) {
       wb.valid := SEL
       wb.payload := Global.expendPc(PC_FALSE, Riscv.XLEN).asBits
     }

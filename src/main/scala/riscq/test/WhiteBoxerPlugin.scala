@@ -233,9 +233,9 @@ class WhiteboxerPlugin() extends FiberPlugin{
       val mask = wrap(p.logic.bus.cmd.mask)
       val addr = wrap(p.logic.bus.cmd.address)
       val write = wrap(p.logic.bus.cmd.write)
-      val WRITE_DATA = wrap(pp.execute(0)(p.logic.onFirst.WRITE_DATA))
-      val READ_DATA1 = wrap(pp.execute(1)(p.logic.onJoin.READ_DATA))
-      val READ_DATA2 = wrap(pp.execute(2)(p.logic.onJoin.READ_DATA))
+      // val WRITE_DATA = wrap(pp.execute(0)(p.logic.onFirst.WRITE_DATA))
+      // val READ_DATA1 = wrap(pp.execute(1)(p.logic.onJoin.READ_DATA))
+      // val READ_DATA2 = wrap(pp.execute(2)(p.logic.onJoin.READ_DATA))
     }
     buildBefore.release()
   }
