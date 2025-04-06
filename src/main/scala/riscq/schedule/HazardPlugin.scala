@@ -51,11 +51,9 @@ class HazardPlugin(rfReadAt: Int = -1, hazardAt: Int = -1, enableBypass: Boolean
 
     val flushChecker = new Area {
       val ctrlRange = dontFlushFromMin to mayFlushUpToMax - 1 // the stages that illegal flush may happen to the current uop0
-      println(s"debug hazard ctrlrange: ${ctrlRange}")
       val hits = for(dist <- 1 to ctrlRange.length) yield { // the uop1 at dist ahead may flush the current uop0
         val otherCtrl = pp.execute(hazardAt + dist)
         val downstream = for(i <- ctrlRange.low to ctrlRange.high - dist + 1) yield { // if the flush happens when the current uop0 arrives i, check if that flush is illegal(dontflush) and possible(mayflush)
-          println(s"debug hazard ds: ${i}")
           hazardCtrl(getDontFlush(i)) && otherCtrl(getMayFlush(i + dist)) // && otherCtrl(Global.HART_ID) === c.ctx.hartId
         }
         downstream.orR && otherCtrl.isValid
@@ -94,7 +92,6 @@ class HazardPlugin(rfReadAt: Int = -1, hazardAt: Int = -1, enableBypass: Boolean
           val hazardFrom = rfReadAt + 1
           val hazardUntil = rdBroadcastedFromMax
           val hazardRange = hazardFrom until hazardUntil
-          println(s"!!!!!!!!!!!!!###########$hazardRange")
           val hazards = for(id <- hazardRange) yield {
             val node = pp.execute(id)
             if(enableBypass) {

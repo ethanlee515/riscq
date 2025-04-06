@@ -8,7 +8,7 @@ case class EnvelopeMultiplier(
   batchSize: Int,
   dataWidth: Int,
 ) extends Component {
-  val latency = 3
+  val latency = 4
   val batchWidth = batchSize * dataWidth
   val io = new Bundle {
     // val duration = slave port Flow(UInt(durWidth bit))
@@ -34,7 +34,7 @@ case class EnvelopeMultiplier(
   }
   val ecPReg = RegNext(ecMReg)
 
-  io.pulse := ecPReg
+  io.pulse := RegNext(ecPReg)
 }
 
 object TestEnvelopeMultiplierLatency extends App {

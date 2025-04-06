@@ -449,7 +449,8 @@ case class MemoryMapSoc(
         durWidth = MMSocParams.pulseDurWidth,
         memLatency =
           1 + pulseMems(0).withOutRegFast.toInt + 1, // the last 1 is from x.io.memPort.rsp := RegNext(y.fastPort.rdata)
-        timeInOffset = 1
+        timeInOffset = 1,
+        queueDepth = 4
       )
     )
     pgs.foreach { _.addAttribute("KEEP_HIERARCHY", "TRUE") }

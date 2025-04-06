@@ -66,7 +66,7 @@ case class PulseGenerator(
   // addrLatency = 3 + 2 = 5
   // shiftedTime = RegNext(io.time + 5 + 2) = io.time + 6
   // pop time: io.time + 6 === startTime + 1 => io.time = 95
-  val pulseBufLatency = 1
+  val pulseBufLatency = 2
 
   val phaseLatency = cg.phaseLatency + envMult.latency + pulseBufLatency
   val phaseRefTime = shiftedTime(phaseLatency)
@@ -117,8 +117,9 @@ case class PulseGenerator(
   resValid.addAttribute("MAX_FANOUT", "16")
   io.pulse.valid := resValid
 
+  val pulseBuf0 = RegNext(envMult.io.pulse)
   val pulseBuf = Reg(io.pulse.payload)
-  pulseBuf := resValid.mux(envMult.io.pulse, pulseBuf.getZero)
+  pulseBuf := resValid.mux(pulseBuf0, pulseBuf.getZero)
   io.pulse.payload := pulseBuf
 }
 

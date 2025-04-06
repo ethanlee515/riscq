@@ -286,7 +286,7 @@ object BenchPulseGenerator extends App {
   val addrWidth = 12
   val timeWidth = 32
   val rtl= Rtl(SpinalVerilog(
-    PulseGenerator(batchSize, dataWidth, addrWidth, timeWidth, queueDepth = 3)
+    PulseGenerator(batchSize, dataWidth, addrWidth, timeWidth, queueDepth = 4)
   ))
   Bench(List(rtl), XilinxRfsocTarget(1000 MHz), "./bench/")
 }

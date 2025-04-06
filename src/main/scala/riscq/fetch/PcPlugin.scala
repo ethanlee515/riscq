@@ -39,7 +39,7 @@ class PcPlugin(var resetVector : BigInt = 0x80000000l) extends FiberPlugin with 
 
     // assert(Global.HART_COUNT.get == 1)
     val forcedSpawn = jumps.map(_.bus.valid).orR
-    println(s"debug jumps: ${jumps}")
+    // println(s"debug jumps: ${jumps.map{_.getDisplayName()}}")
     // println(forcedSpawn.toString)
 
     // Self is a jump interface which store the PC

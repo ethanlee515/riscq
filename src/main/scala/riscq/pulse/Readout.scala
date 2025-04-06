@@ -87,7 +87,7 @@ case class ReadoutComparator(refWidth: Int, readoutWidth: Int) extends Component
   }
 
   val outputLogic = new output.Area {
-    io.res := SUM.sign
+    io.res := RegNext(SUM.sign)
   }
 
   val connectors = List(StageLink(input, mult), StageLink(mult, add), StageLink(add, output))
@@ -146,8 +146,8 @@ case class ReadoutDecoder(batchSize: Int, inWidth: Int, accWidth: Int, durWidth:
   for(i <- 0 until batchSize){
     compMul(i).io.c0 := io.adc(i)
     compMul(i).io.c1 := io.carrier(i)
-    addTreeR.input(i) := compMul(i).io.c.r.asSInt.resized
-    addTreeI.input(i) := compMul(i).io.c.i.asSInt.resized
+    addTreeR.input(i) := RegNext(compMul(i).io.c.r.asSInt.resized)
+    addTreeI.input(i) := RegNext(compMul(i).io.c.i.asSInt.resized)
   }
   val sumR = Reg(SInt(accWidth bit))
   val sumI = Reg(SInt(accWidth bit))
@@ -183,7 +183,7 @@ case class ReadoutDecoder(batchSize: Int, inWidth: Int, accWidth: Int, durWidth:
         }
       }
     }
-    val waitCmp = new StateDelay(cyclesCount = 3) {
+    val waitCmp = new StateDelay(cyclesCount = 4) {
       whenCompleted{
         resValid := True
         exit()
