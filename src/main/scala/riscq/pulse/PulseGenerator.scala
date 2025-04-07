@@ -40,6 +40,7 @@ case class PulseGenerator(
   val cg = CarrierGeneratorWithAmp(batchSize, dataWidth, timeWidth)
   val pmReader = PulseMemReader(batchSize, dataWidth, addrWidth, memLatency)
   val envMult = EnvelopeMultiplier(batchSize, dataWidth)
+  // envMult.addAttribute("KEEP_HIERARCHY", "TRUE")
 
   pmReader.io.memPort <> io.memPort
 
@@ -47,11 +48,11 @@ case class PulseGenerator(
   envMult.io.env := pmReader.io.env
 
 
-  // !!!!!!!!!!!!!!!!! flow to stream
-  // freq has to be set in advance
-  phaseGen.io.freq.assignSomeByName(io.freq)
+  // // !!!!!!!!!!!!!!!!! flow to stream
+  // // freq has to be set in advance
+  // phaseGen.io.freq.assignSomeByName(io.freq)
+  // cg.io.freq << io.freq
   cg.io.freqPhases << phaseGen.io.phases
-  cg.io.freq << io.freq
 
   cg.io.time := io.time
 
@@ -67,6 +68,25 @@ case class PulseGenerator(
   // shiftedTime = RegNext(io.time + 5 + 2) = io.time + 6
   // pop time: io.time + 6 === startTime + 1 => io.time = 95
   val pulseBufLatency = 2
+
+  val freqLatency = phaseGen.latency + cg.freqPhaseLatency + envMult.latency + pulseBufLatency
+  val freqRefTime = shiftedTime(freqLatency)
+  val freqQueue = TimedQueue(phaseGen.io.freq.payload, queueDepth, timeWidth)
+  freqQueue.io.time := freqRefTime
+  freqQueue.io.push.valid := io.freq.valid
+  freqQueue.io.push.payload.data := io.freq.payload
+  freqQueue.io.push.payload.startTime := startTime
+  phaseGen.io.freq.assignSomeByName(freqQueue.io.pop)
+
+  val cgFreqLatency = cg.freqLatency + envMult.latency + pulseBufLatency
+  val cgFreqRefTime = shiftedTime(cgFreqLatency)
+  val cgFreqQueue = TimedQueue(cg.io.freq.payload, queueDepth, timeWidth)
+  cgFreqQueue.io.time := cgFreqRefTime
+  cgFreqQueue.io.push.valid := io.freq.valid
+  cgFreqQueue.io.push.payload.data := io.freq.payload
+  cgFreqQueue.io.push.payload.startTime := startTime
+  cg.io.freq << cgFreqQueue.io.pop
+  
 
   val phaseLatency = cg.phaseLatency + envMult.latency + pulseBufLatency
   val phaseRefTime = shiftedTime(phaseLatency)
@@ -130,21 +150,26 @@ object TestPulseGenerator extends App {
   val timeWidth = 32
   SimConfig.compile{
     val dut = PulseGenerator(
-      batchSize,
-      dataWidth,
-      addrWidth,
-      timeWidth,
-      queueDepth = 3
+      batchSize=batchSize,
+      dataWidth=dataWidth,
+      addrWidth=addrWidth,
+      timeWidth=timeWidth,
+      queueDepth = 4,
+      memLatency = 2,
+      timeInOffset = 0,
     )
     dut.phaseGen.io.simPublic()
     dut.cg.io.simPublic()
     dut.cg.amp.simPublic()
+    dut.cg.phase.simPublic()
+    dut.cg.freq.simPublic()
     dut.envMult.io.simPublic()
     dut.pmReader.io.simPublic()
     dut.ampQueue.io.simPublic()
     dut.phaseQueue.io.simPublic()
     dut.addrQueue.io.simPublic()
     dut.durQueue.io.simPublic()
+    dut.freqQueue.io.simPublic()
     dut
   }.doSimUntilVoid{ dut =>
     val cd = dut.clockDomain
@@ -164,10 +189,10 @@ object TestPulseGenerator extends App {
     cd.waitRisingEdge()
 
     dut.io.amp.valid #= true
-    dut.io.freq.valid #= true
     dut.io.phase.valid #= true
     dut.io.addr.valid #= true
     dut.io.dur.valid #= true
+    dut.io.freq.valid #= true
 
 
     // dut.io.amp.payload #= 0
@@ -182,10 +207,10 @@ object TestPulseGenerator extends App {
     cd.waitRisingEdge()
 
     dut.io.amp.valid #= false
-    dut.io.freq.valid #= false
     dut.io.phase.valid #= false
     dut.io.addr.valid #= false
     dut.io.dur.valid #= false
+    dut.io.freq.valid #= false
     cd.waitRisingEdge()
 
     val memLogic = fork {
@@ -196,7 +221,7 @@ object TestPulseGenerator extends App {
         rsp2 = rsp1
         rsp1 = if (addr > 200) ((1 << 15) - 1) else (1 << 13)
         // addr = dut.io.memPort.cmd.payload.toInt
-        sleep(1)
+        sleep(5)
         addr = dut.pmReader.io.memPort.cmd.payload.toInt
         val rsp2Str = ByteHelper.intToBinStr(rsp2, 16)
         // val rsp2Str = ByteHelper.intToBinStr((1 << 15) - 1, 16)
@@ -214,8 +239,10 @@ object TestPulseGenerator extends App {
     dut.io.phase.valid #= true
     dut.io.addr.valid #= true
     dut.io.dur.valid #= true
+    dut.io.freq.valid #= true
 
-    dut.io.startTime #= 100
+    dut.io.startTime #= 120
+    dut.io.freq.payload #= freq / 2
     dut.io.amp.payload #= dut.io.amp.payload.maxValue
     dut.io.phase.payload #= 0.5
     dut.io.addr.payload #= 1000
@@ -224,14 +251,12 @@ object TestPulseGenerator extends App {
     cd.waitRisingEdge()
 
     dut.io.amp.valid #= false
-    dut.io.freq.valid #= false
     dut.io.phase.valid #= false
     dut.io.addr.valid #= false
-    dut.io.dur.valid #= false
+    dut.io.freq.valid #= false
 
     dut.io.dur.payload #= 3
-    dut.io.startTime #= 104
-    dut.io.dur.valid #= true
+    dut.io.startTime #= 124
 
     cd.waitRisingEdge()
     dut.io.dur.valid #= false
@@ -241,17 +266,17 @@ object TestPulseGenerator extends App {
     var time = 0
     val timeLogic = fork {
       while(true) {
+        time += 1
         dut.io.time #= time
         cd.waitRisingEdge()
-        time += 1
       }
     }
 
-    val waitStart = 90
+    val waitStart = 115
     cd.waitRisingEdge(waitStart)
-    for(i <- 0 until 20) {
+    for(i <- 0 until 15) {
       sleep(3)
-      println(s"time: $time v: ${dut.io.pulse.valid.toBoolean}")
+      println(s"time: ${dut.io.time.toBigInt} v: ${dut.io.pulse.valid.toBoolean}")
       println(s"pulse: ${dut.io.pulse.payload.map{_.r.toDouble}}")
       // println(s"envMult: env: ${dut.envMult.io.env.map{_.toBigInt}}")
       println(s"envMult: carrier: ${dut.envMult.io.carrier.map{_.r.toDouble}}")
@@ -259,7 +284,11 @@ object TestPulseGenerator extends App {
       // println(s"pm addr in: ${dut.pmReader.io.addr.payload.toBigInt} ${dut.pmReader.io.addr.valid.toBoolean}")
       // println(s"pm addr out: ${dut.pmReader.io.memPort.cmd.payload.toBigInt}")
       // println(s"pm env: ${dut.pmReader.io.env.map{_.toBigInt}}")
-      // println(s"carrier: ${dut.cg.io.carrier.map{_.r.toDouble}}")
+      // println(s"carrier freq: ${dut.cg.freq.toDouble}")
+      // println(s"carrier freqphase: ${dut.cg.io.freqPhases.payload.map{_.r.toDouble}}")
+      // println(s"cg phase: ${dut.cg.phase.toDouble}")
+      // println(s"cg amp: ${dut.cg.amp.toDouble}")
+      // println(s"cg carrier: ${dut.cg.io.carrier.map{_.r.toDouble}}")
       // println(s"env: ${dut.pmReader.io.env.map{_.toBigInt.toString(2)}}")
       // println(s"env: ${dut.pmReader.io.memPort.rsp.toBigInt.toString(2)}")
       // println(s"amp: ${dut.cg.io.amp.payload.toDouble}, ${dut.cg.io.amp.valid.toBoolean}, ${dut.cg.amp.toDouble}")
@@ -268,6 +297,7 @@ object TestPulseGenerator extends App {
       // println(s"durQueue: ${dut.durQueue.io.pop.payload.toBigInt}, ${dut.durQueue.io.pop.valid.toBoolean}")
       // println(s"addrQueue: ${dut.addrQueue.io.pop.payload.toBigInt}, ${dut.addrQueue.io.pop.valid.toBoolean}")
       // println(s"phase gen: ${dut.phaseGen.io.phases.payload.map{_.r.toDouble}}")
+      // println(s"freqQueue: ${dut.freqQueue.io.pop.payload.toDouble}, ${dut.freqQueue.io.pop.valid.toBoolean}")
       println("")
       cd.waitRisingEdge()
     }

@@ -64,6 +64,7 @@ object TestEnvelopeMultiplierLatency extends App {
     dut.io.env.foreach{e => e #= ((1 << 14) - 1)}
 
     for(i <- 0 until 10) {
+      sleep(1)
       println(s"time: ${i}")
       println(s"envAReg: ${dut.envARegR(0).toBigInt}")
       println(s"carrier: ${dut.carrierAReg(0).r.toDouble * (1 << 15)}")

@@ -15,6 +15,8 @@ case class CarrierGeneratorWithAmp(
   val cosSin = Cordic(xyWidth = dataWidth, zWidth = dataWidth)
   val ampLatency = cosSin.latency + 7
   val phaseLatency = cosSin.latency + 8
+  val freqLatency = cosSin.latency + 9
+  val freqPhaseLatency = 7
 
   val io = new Bundle {
     val amp = slave port Flow(AFix.S(0 exp, dataWidth bit))
@@ -255,7 +257,7 @@ object TestCarrierGeneratorWithAmpLatency extends App {
     // dut.io.phase.payload #= 0.5
 
     for(i <- 0 until 40) {
-      sleep(3)
+      sleep(5)
       println(s"time: $i")
       println(s"carrier: ${dut.io.carrier.map{_.r.toDouble}.toList} \n")
       cd.waitSampling()
