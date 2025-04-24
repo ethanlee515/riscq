@@ -16,8 +16,8 @@ import net.fornwall.jelf.ElfSectionHeader
 class Driver(dut: MemoryMapSoc) {
   implicit val idAllocator = new IdAllocator(DebugId.width)
   implicit val idCallback = new IdCallback
-  val cd = dut.clockDomain
-  val cd100m = dut.cd100m
+  val dspCd = dut.clockDomain
+  val hostCd = dut.hostCd
 
   val wb = dut.core.host[test.WhiteboxerPlugin].logic
 
@@ -25,28 +25,26 @@ class Driver(dut: MemoryMapSoc) {
   var tlDriver: MasterAgent = null
 
   def init() = {
-    axi4Driver = Axi4Master(dut.axi, cd100m)
+    axi4Driver = Axi4Master(dut.axi, hostCd)
     axi4Driver.reset()
-    tlDriver = new MasterAgent(dut.tlBus.node.bus, cd100m)
-    cd.forkStimulus(10)
-    cd100m.forkStimulus(50)
+    tlDriver = new MasterAgent(dut.tlBus.node.bus, hostCd)
+    dspCd.forkStimulus(10)
+    hostCd.forkStimulus(50)
 
-    cd.assertReset()
-    cd100m.assertReset()
-    cd100m.waitRisingEdge(10)
-    cd.deassertReset()
-    cd100m.deassertReset()
+    rstUp()
+    hostCd.waitRisingEdge(10)
+    rstDown()
   }
 
   def rstUp() = {
-    cd.assertReset()
-    cd100m.assertReset()
+    dspCd.assertReset()
+    hostCd.assertReset()
     dut.riscq_rst #= true
   }
 
   def rstDown() = {
-    cd.deassertReset()
-    cd100m.deassertReset()
+    dspCd.deassertReset()
+    hostCd.deassertReset()
     dut.riscq_rst #= false
   }
 
@@ -64,7 +62,7 @@ class Driver(dut: MemoryMapSoc) {
   }
 
   def tick(t: Int = 1) = {
-    cd.waitRisingEdge(t)
+    dspCd.waitRisingEdge(t)
   }
 
   def waitUntil(t: Int) = {
@@ -121,12 +119,12 @@ class Driver(dut: MemoryMapSoc) {
   }
 
   def logDac(n: Int) = {
-    val dac = dut.pgs(n).io.pulse
+    val dac = dut.rfArea.pgs(n).io.pulse
     val pulse = dac.payload.map { _.r.toDouble }.toList
     println(s"pulse: ${pulse}")
   }
 
-  def dutTime = dut.mmFiber.logic.time.toBigInt
+  def dutTime = dut.clintFiber.time.toBigInt
 
   def logTime() = {
     val time = dutTime
@@ -151,7 +149,7 @@ object TestMMSocPulse extends App {
         withWhitebox = true,
         withTest = true
       )
-      dut.pgs.map { _.io.simPublic() }
+      dut.rfArea.pgs.map { _.io.simPublic() }
       dut
     }
     .doSim { dut =>
@@ -160,6 +158,8 @@ object TestMMSocPulse extends App {
 
       init()
 
+      dut.riscq_rst #= true
+
       val batchSize = 16
       val dataWidth = 16
       val id = 2
@@ -167,13 +167,9 @@ object TestMMSocPulse extends App {
         val dt = if (i == 0) BigInt(1 << 12) else BigInt((1 << 15) - 1)
         val batch = List.fill(batchSize)(dt)
         val dataStr = batch.map { x => ByteHelper.intToBinStr(x, dataWidth) }.reduce { _ ++ _ }
-        tlDriver.putFullData(
-          0,
-          dut.pmAxiOffset + (1 << 20) * id + i * batchSize * dataWidth / 8,
-          ByteHelper.fromBinStr(dataStr).reverse
-        )
+        dut.pulseMemFiber.pulseMems(id).mem.setBigInt(i, BigInt(dataStr, 2))
       }
-      cd100m.waitRisingEdge()
+      hostCd.waitRisingEdge()
 
       val elfFile = new File("compiler-scripts/pg_test.elf")
       val elf = new Elf(elfFile, addressWidth = 32)
@@ -181,16 +177,9 @@ object TestMMSocPulse extends App {
 
       val startTime = 50
 
-      dut.riscq_rst #= true
       tick(10)
       dut.riscq_rst #= false
 
-      // val monitor = new Monitor(dut.dBus.bus, cd)
-      // val pcReset = 0x80000000L
-      // monitor.add(new MonitorSubscriber {
-      //   override def onA(a: TransactionA) = { println(s"${dutTime}"); println(a) }
-      //   override def onD(d: TransactionD) = { println(s"${dutTime}"); println(d) }
-      // })
       tick()
       logRf()
 
@@ -204,23 +193,6 @@ object TestMMSocPulse extends App {
           tick()
         }
       }
-
-    // waitUntil(99)
-    // for (i <- 0 until 10) {
-    //   // println(s"${dut.mem.mem.getBigInt(0).toString(16)}")
-    //   // println(s"${dut.mem.mem.getBigInt(0x1d).toString(16)}")
-    //   // println(s"${dut.mmFiber.logic.cgParams(0).cgIo.freq.toDouble}")
-    //   // println(s"bypass: ${wb.hazard.bypass_1.map{case (id, data) => (id, data.toBoolean)}}")
-    //   logTime()
-    //   // logBranch()
-    //   // logHazard()
-    //   // logPcs()
-    //   // logSrc()
-    //   // logExInsts()
-    //   logDac(2)
-    //   println("")
-    //   tick()
-    // }
     }
 }
 
@@ -235,15 +207,18 @@ object TestMMSocReadout extends App {
         withWhitebox = true,
         withTest = true
       )
-      dut.pgs.map { _.io.simPublic() }
-      dut.rds.map { _.io.simPublic() }
+      dut.rfArea.pgs.map { _.io.simPublic() }
+      dut.rfArea.rds.map { _.io.simPublic() }
+      dut.rbArea.foreach{ _.readoutBuffer.fastPort.simPublic()}
+      dut.clintFiber.timeCmp.simPublic()
       dut
     }
-    .doSim { dut =>
+    .doSim(seed=451352289) { dut => //451352289
       val driver = new Driver(dut)
       import driver._
 
       init()
+      dut.riscq_rst #= true
 
       val adc_id = 2
       val adcLogic = fork {
@@ -258,17 +233,31 @@ object TestMMSocReadout extends App {
         // 2ns -> phase + 0.2 * 2pi = 4 point
         // 1point -> phase + 0.1 * pi
         val batchSize = 4
-        val phaseAdc = 0.0
+        val phaseAdc = 0
         while (true) {
           for (i <- 0 until batchSize) {
-            val time = dutTime - 19
+            val time = dutTime - 16
             val ar = math.cos((time * batchSize + i).toDouble * freq + phaseAdc)
             val ai = -math.sin((time * batchSize + i).toDouble * freq + phaseAdc)
             dut.test_adc(adc_id)(i).r #= math.min(ar, dut.test_adc(adc_id)(i).r.maxValue.toDouble)
             dut.test_adc(adc_id)(i).i #= math.min(ai, dut.test_adc(adc_id)(i).r.maxValue.toDouble)
           }
-          cd.waitSampling()
+          dspCd.waitSampling()
         }
+      }
+
+      val batchSize = 16
+      val dataWidth = 16
+      val id = 2
+      for (i <- 0 until 100) {
+        val dt = if (i == 0) BigInt(1 << 12) else BigInt((1 << 15) - 1)
+        val batch = List.fill(batchSize)(dt)
+        val dataStr = batch.map { x => ByteHelper.intToBinStr(x, dataWidth) }.reduce { _ ++ _ }
+        tlDriver.putFullData(
+          0,
+          dut.hostBusArea.pulseMemOffset + (1 << 20) * id + i * batchSize * dataWidth / 8,
+          ByteHelper.fromBinStr(dataStr).reverse
+        )
       }
 
       val elfFile = new File("compiler-scripts/rd_test.elf")
@@ -277,20 +266,19 @@ object TestMMSocReadout extends App {
 
       val startTime = 50
 
-      dut.riscq_rst #= true
       tick(10)
       dut.riscq_rst #= false
 
-      val monitor = new Monitor(dut.dBus.bus, cd)
-      val pcReset = 0x80000000L
+      // val monitor = new Monitor(dut.dBus.bus, dspCd)
+      val monitor = new Monitor(dut.rfFiber.up.bus, dspCd)
       monitor.add(new MonitorSubscriber {
         override def onA(a: TransactionA) = { println(s"${simTime()}"); println(a) }
         override def onD(d: TransactionD) = { println(s"!!!!!!!${simTime()}"); println(d) }
       })
 
       tick(30)
-      waitUntil(60)
-      for (i <- 0 until 60) {
+      waitUntil(90)
+      for (i <- 0 until 50) {
         // println(s"${dut.mem.mem.getBigInt(0).toString(16)}")
         // println(s"${dut.mem.mem.getBigInt(0x1d).toString(16)}")
         // println(s"${dut.mmFiber.logic.cgParams(0).cgIo.freq.toDouble}")
@@ -307,7 +295,18 @@ object TestMMSocReadout extends App {
         // println(s"carrier: ${dut.rds(2).io.carrier.map{c => c.r.toDouble}}")
         // println(s"adc: ${dut.rds(2).io.adc.map{c => c.r.toDouble}}")
         // println(s"demod: ${dut.rds(2).io.demodData.payload.map{c => c.r.toDouble}}")
-        println(s"res: ${dut.rds(2).io.res.payload.toBoolean}")
+        logDac(0)
+        // println(s"pulse v: ${dut.rfArea.pgs(0).io.pulse.valid.toBoolean}")
+        // println(s"pulse dur: ${dut.rfArea.pgs(0).io.dur.valid.toBoolean}")
+        // println(s"startTime: ${dut.rfArea.startTime.toBigInt}")
+        println(s"time cmp: ${dut.clintFiber.timeCmp.toBigInt}")
+        println(s"res: ${dut.rfArea.rds(2).io.res.payload.toBoolean}")
+        println(s"res v: ${dut.rfArea.rds(2).io.res.valid.toBoolean}")
+        // println(s"res demod v: ${dut.rfArea.rds(2).io.demodData.valid.toBoolean}")
+        println(s"res demod v: ${dut.rfArea.rds(2).io.demodData.payload.map{_.r.toBigDecimal}}")
+        println(s"res adc v: ${dut.rfArea.rds(2).io.adc.map{_.r.toBigDecimal}}")
+        println(s"res carrier v: ${dut.rfArea.rds(2).io.carrier.map{_.r.toBigDecimal}}")
+        // println(s"rb write v: ${dut.rbArea(2).readoutBuffer.fastPort.write.toBoolean}")
         println("")
         tick()
       }

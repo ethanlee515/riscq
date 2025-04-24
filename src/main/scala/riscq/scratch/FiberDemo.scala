@@ -15,6 +15,34 @@ import spinal.lib.misc.Clint.addressWidth
 import spinal.lib.bus.misc.SizeMapping
 import spinal.core.fiber.Fiber
 import riscq.misc.TileLinkMemReadWriteFiber
+import spinal.lib.bus.amba4.axi.Axi4Config
+import spinal.lib.bus.amba4.axi.Axi4ToTilelinkFiber
+import spinal.lib.bus.amba4.axi.Axi4
+
+object TileLinkCdDemo extends App {
+  case class TLCD() extends Component {
+    val cd500m = ClockDomain.current
+    val clk100m = in Bool ()
+    val rst100m = in Bool ()
+    val cd100m = ClockDomain(clk100m, rst100m)
+
+    val axiConfig = Axi4Config(
+      addressWidth = 32,
+      dataWidth = 32,
+      idWidth = 2
+    )
+    val axi = slave(Axi4(axiConfig))
+    val bridge = new Axi4ToTilelinkFiber(blockSize = 32, slotsCount = 4)
+    bridge.up load axi
+    val hostBus = cd100m(Node())
+    hostBus at 0 of bridge.down
+    val mem = cd100m(Mem.fill(128)(Bits(32 bit)))
+    val memFiber = TileLinkMemReadWriteFiber(mem.readWriteSyncPort(32 / 8), false)
+    memFiber.up at 0 of hostBus
+  }
+
+  SpinalVerilog(TLCD())
+}
 
 object TileLinkSizeMappingDemo extends App {
   case class TLSM() extends Component {

@@ -30,25 +30,25 @@ case class NoClkModule() extends Component {
 }
 
 case class ClockInterface() extends Component {
-  val clk500m_clk_p = in Bool()
-  val clk500m_clk_n = in Bool()
-  clk500m_clk_p.addAttribute("X_INTERFACE_INFO", "xilinx.com:interface:diff_clock:1.0 clk500m_diff CLK_P ")
-  clk500m_clk_n.addAttribute("X_INTERFACE_INFO", "xilinx.com:interface:diff_clock:1.0 clk500m_diff CLK_N ")
+  val dspClk_clk_p = in Bool()
+  val dspClk_clk_n = in Bool()
+  dspClk_clk_p.addAttribute("X_INTERFACE_INFO", "xilinx.com:interface:diff_clock:1.0 dspClk_diff CLK_P ")
+  dspClk_clk_n.addAttribute("X_INTERFACE_INFO", "xilinx.com:interface:diff_clock:1.0 dspClk_diff CLK_N ")
 
-  val clk100m_clk_p = in Bool()
-  val clk100m_clk_n = in Bool()
-  clk100m_clk_p.addAttribute("X_INTERFACE_INFO", "xilinx.com:interface:diff_clock:1.0 clk100m_diff CLK_P ")
-  clk100m_clk_n.addAttribute("X_INTERFACE_INFO", "xilinx.com:interface:diff_clock:1.0 clk100m_diff CLK_N ")
+  val hostClk_clk_p = in Bool()
+  val hostClk_clk_n = in Bool()
+  hostClk_clk_p.addAttribute("X_INTERFACE_INFO", "xilinx.com:interface:diff_clock:1.0 hostClk_diff CLK_P ")
+  hostClk_clk_n.addAttribute("X_INTERFACE_INFO", "xilinx.com:interface:diff_clock:1.0 hostClk_diff CLK_N ")
 
   val user_sysref_clk_p = in Bool()
   val user_sysref_clk_n = in Bool()
   user_sysref_clk_p.addAttribute("X_INTERFACE_INFO", "xilinx.com:interface:diff_clock:1.0 user_sysref_diff CLK_P ")
   user_sysref_clk_n.addAttribute("X_INTERFACE_INFO", "xilinx.com:interface:diff_clock:1.0 user_sysref_diff CLK_N ")
 
-  val clk500m = out Bool()
-  clk500m.addAttribute("X_INTERFACE_INFO", "xilinx.com:signal:clock:1.0 clk500m CLK")
-  val clk100m = out Bool()
-  clk100m.addAttribute("X_INTERFACE_INFO", "xilinx.com:signal:clock:1.0 clk100m CLK")
+  val dspClk = out Bool()
+  dspClk.addAttribute("X_INTERFACE_INFO", "xilinx.com:signal:clock:1.0 dspClk CLK")
+  val hostClk = out Bool()
+  hostClk.addAttribute("X_INTERFACE_INFO", "xilinx.com:signal:clock:1.0 hostClk CLK")
   val user_sysref = out Bool()
   user_sysref.addAttribute("X_INTERFACE_INFO", "xilinx.com:signal:clock:1.0 user_sysref CLK")
 
@@ -56,12 +56,12 @@ case class ClockInterface() extends Component {
   val ibufgds100m = IBUFGDS()
   val ibufgdsUserSysref = IBUFGDS()
 
-  ibufgds500m.I := clk500m_clk_p
-  ibufgds500m.IB := clk500m_clk_n
-  clk500m := ibufgds500m.O
-  ibufgds100m.I := clk100m_clk_p
-  ibufgds100m.IB := clk100m_clk_n
-  clk100m := ibufgds100m.O
+  ibufgds500m.I := dspClk_clk_p
+  ibufgds500m.IB := dspClk_clk_n
+  dspClk := ibufgds500m.O
+  ibufgds100m.I := hostClk_clk_p
+  ibufgds100m.IB := hostClk_clk_n
+  hostClk := ibufgds100m.O
   ibufgdsUserSysref.I := user_sysref_clk_p
   ibufgdsUserSysref.IB := user_sysref_clk_n
   user_sysref := ibufgdsUserSysref.O
@@ -73,4 +73,13 @@ object ClkIfcTest extends App {
 
 object IbufgdsTest extends App {
   SpinalVerilog(IbufgdsTestTop())
+}
+
+object VivadoClkHelper extends App {
+  def addInference(clk: Bool, rst: Bool, freq: Long) = {
+    rst.addAttribute("X_INTERFACE_INFO", s"xilinx.com:signal:reset:1.0 ${rst.getDisplayName()} rst")
+    rst.addAttribute("X_INTERFACE_PARAMETERS", "POLARITY ACTIVE_HIGH")
+    clk.addAttribute("X_INTERFACE_INFO", s"xilinx.com:signal:clock:1.0 ${clk.getDisplayName()} clk")
+    clk.addAttribute("X_INTERFACE_PARAMETERS", s"FREQ_HZ ${freq}, ASSOCIATED_RESET ${rst.getDisplayName()}")
+  }
 }

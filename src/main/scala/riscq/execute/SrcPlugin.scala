@@ -45,7 +45,7 @@ object SrcKeys extends AreaObject {
 }
 
 class SrcPlugin(var executeAt : Int,
-                var relaxedRs: Boolean = false,
+                var relaxedRs: Boolean,
                 ) extends FiberPlugin{
   val elaborationLock = Retainer()
 

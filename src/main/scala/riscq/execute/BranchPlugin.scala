@@ -26,9 +26,9 @@ object BranchPlugin extends AreaObject {
 }
 
 class BranchPlugin(
-    var aluAt: Int = 0,
-    var jumpAt: Int = 1,
-    var wbAt: Int = 0
+    var aluAt: Int,
+    var jumpAt: Int,
+    var wbAt: Int
 ) extends ExecutionUnit { // with LearnSource
   import BranchPlugin._
 

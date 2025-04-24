@@ -56,52 +56,6 @@ object TestAddTree extends App {
   }
 }
 
-case class ReadoutComparator(refWidth: Int, readoutWidth: Int) extends Component {
-  val io = new Bundle {
-    val refR = in port SInt(refWidth bit)
-    val refI = in port SInt(refWidth bit)
-    val readoutR = in port SInt(readoutWidth bit)
-    val readoutI = in port SInt(readoutWidth bit)
-    val res = out port Bool() // = 1 iff refR * readoutR + refI * readoutI < 0
-  }
-
-  val input, mult, add, output = Node()
-  val REFR, REFI = Payload(SInt(refWidth bit))
-  val READOUTR, READOUTI = Payload(SInt(readoutWidth bit))
-  val MULTR, MULTI, SUM = Payload(SInt(refWidth + readoutWidth bit))
-
-  val inLogic = new input.Area {
-    REFR := io.refR
-    REFI := io.refI
-    READOUTR := io.readoutR
-    READOUTI := io.readoutI
-  }
-
-  val multLogic = new mult.Area {
-    MULTR := REFR * READOUTR
-    MULTI := REFI * READOUTI
-  }
-
-  val addLogic = new add.Area {
-    SUM := MULTR + MULTI
-  }
-
-  val outputLogic = new output.Area {
-    io.res := RegNext(SUM.sign)
-  }
-
-  val connectors = List(StageLink(input, mult), StageLink(mult, add), StageLink(add, output))
-  Builder(connectors)
-}
-
-
-object BenchReadoutComparator extends App {
-  val rtl = Rtl(SpinalVerilog(
-    ReadoutComparator(16, 27)
-  ))
-  Bench(List(rtl), XilinxRfsocTarget(), "./bench/")
-}
-
 case class ReadoutDecoder(batchSize: Int, inWidth: Int, accWidth: Int, durWidth: Int, timeWidth: Int) extends Component {
   val io = new Bundle {
     val time = in port UInt(timeWidth bit)
@@ -109,8 +63,8 @@ case class ReadoutDecoder(batchSize: Int, inWidth: Int, accWidth: Int, durWidth:
     val adc = in port ComplexBatch(batchSize, inWidth)
     val carrier = in port ComplexBatch(batchSize, inWidth)
     val dur = slave port Flow(UInt(durWidth bits))
-    val refR = slave port Flow(SInt(inWidth bit))
-    val refI = slave port Flow(SInt(inWidth bit))
+    val real = out port SInt(accWidth bit)
+    val imag = out port SInt(accWidth bit)
     val res = master port Flow(Bool())
     val demodData = master port Flow(Vec.fill(batchSize)(Complex(inWidth)))
   }
@@ -156,14 +110,9 @@ case class ReadoutDecoder(batchSize: Int, inWidth: Int, accWidth: Int, durWidth:
     sumI := S(0)
   }
 
-  val refR = RegNextWhen(io.refR.payload, io.refR.valid)
-  val refI = RegNextWhen(io.refI.payload, io.refI.valid)
-  val cmp = ReadoutComparator(refWidth = inWidth, readoutWidth = accWidth)
-  cmp.io.readoutI := sumI
-  cmp.io.readoutR := sumR
-  cmp.io.refI := refI
-  cmp.io.refR := refR
-  io.res.payload := cmp.io.res
+  io.res.payload := sumR.sign
+  io.real := sumR
+  io.imag := sumI
 
   val fsm = new StateMachine {
     val idle = makeInstantEntry()
@@ -183,7 +132,8 @@ case class ReadoutDecoder(batchSize: Int, inWidth: Int, accWidth: Int, durWidth:
         }
       }
     }
-    val waitCmp = new StateDelay(cyclesCount = 4) {
+    // val waitCmp = new StateDelay(cyclesCount = 4) {
+    val waitCmp = new StateDelay(cyclesCount = 1) {
       whenCompleted{
         resValid := True
         exit()
@@ -217,8 +167,8 @@ object ReadoutDecoderTest extends App {
     val cd = dut.clockDomain
     cd.forkStimulus(10)
     
-    dut.io.refR.valid #= false
-    dut.io.refI.valid #= false
+    // dut.io.refR.valid #= false
+    // dut.io.refI.valid #= false
     dut.io.dur.valid #= false
     cd.assertReset()
     cd.waitRisingEdge(10)
@@ -246,12 +196,6 @@ object ReadoutDecoderTest extends App {
       }
     }
 
-
-    dut.io.refR.payload #= -7
-    dut.io.refI.payload #= -7
-    dut.io.refR.valid #= true
-    dut.io.refI.valid #= true
-
     cd.waitRisingEdge(10)
 
     time = 0
@@ -263,7 +207,6 @@ object ReadoutDecoderTest extends App {
     dut.io.dur.valid #= false
     for(i <- 0 until 20){
       println(s"$time res: ${dut.io.res.payload.toBoolean}, valid: ${dut.io.res.valid.toBoolean}, state: ${dut.fsm.stateReg.toBigInt}")
-      // println(s"rsp valid: ${dut.acc.io.rsp.valid.toBoolean}")
       println("")
       cd.waitRisingEdge()
     }

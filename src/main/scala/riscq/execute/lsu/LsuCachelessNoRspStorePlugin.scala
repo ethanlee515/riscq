@@ -7,7 +7,6 @@ import riscq.{Global, riscv}
 import spinal.core.fiber.{Handle, Retainer}
 import spinal.core.sim.SimDataPimper
 import riscq.decode.Decode
-import riscq.memory.DBusAccessService
 import riscq.riscv.Riscv.{LSLEN, XLEN}
 import riscq.riscv.Riscv
 import riscq.riscv.MicroOp
@@ -20,18 +19,15 @@ import riscq.riscv.{Rvi, IntRegFile}
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-class LsuCachelessNoStoreRspPlugin(
+class LsuCachelessNoRspStorePlugin(
     var addressAt: Int = 0,
     var forkAt: Int = 0,
     var joinAt: Int = 1,
     var wbAt: Int = 2
 ) extends ExecutionUnit
-    with DBusAccessService
     with LsuCachelessBusProvider {
 
   val WITH_RSP = Payload(Bool())
-  override def accessRefillCount: Int = 0
-  override def accessWake: Bits = B(0)
   override def getLsuCachelessBus(): LsuCachelessBus = logic.bus
 
   def bufferSize = joinAt - forkAt + 1
@@ -110,8 +106,6 @@ class LsuCachelessNoStoreRspPlugin(
 
     val bus = master(LsuCachelessBus(busParam)).simPublic()
 
-    accessRetainer.await()
-
     val rrp = host[RegReadPlugin]
     val onFirst = new pp.Execute(0) {
       val WRITE_DATA = insert(down(rrp(IntRegFile, riscv.RS2)))
@@ -129,11 +123,16 @@ class LsuCachelessNoStoreRspPlugin(
       val skip = False
 
       val noStore = ~STORE
-      val cmdCounter = Counter(bufferSize, bus.cmd.fire && noStore)
+      val maxStoreOnTheFly = bufferSize
+      val storeId = U(bufferSize)
+      val storeCounter = CounterUpDown(1 << log2Up(maxStoreOnTheFly), incWhen = bus.cmd.fire && STORE, decWhen = bus.rsp.valid && bus.rsp.payload.id === storeId) // just for future implementation of fence
+
+      val cmdCounter = Counter(bufferSize, bus.cmd.fire && noStore) // for loadId
       val cmdSent = RegInit(False) setWhen (bus.cmd.fire) clearWhen (down.isMoving)
+
       bus.cmd.assertPersistence()
       bus.cmd.valid := isValid && SEL && !cmdSent && !forkCtrl.up.isCancel && !skip // && !doFence
-      bus.cmd.id := STORE.mux(U(bufferSize), cmdCounter.value)
+      bus.cmd.id := STORE.mux(storeId, cmdCounter.value)
       bus.cmd.write := STORE
       bus.cmd.address := onAddress.RAW_ADDRESS
       val mapping = (0 to log2Up(Riscv.LSLEN / 8)).map { size =>
@@ -168,6 +167,7 @@ class LsuCachelessNoStoreRspPlugin(
           b.payload := busRspWithoutId
         }
       }
+
       val pop = WITH_RSP && down.isMoving
       val rspCounter = Counter(bufferSize, pop)
       val reader = buffers.reader(rspCounter.resized)

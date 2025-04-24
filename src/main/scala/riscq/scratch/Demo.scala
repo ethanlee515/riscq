@@ -12,6 +12,13 @@ import spinal.lib.misc.pipeline
 import spinal.lib.misc.pipeline._
 import spinal.lib.logic._
 
+object TestOutput extends App {
+  SpinalVerilog{new Component {
+    val o = out Bool()
+    o := True
+  }}
+}
+
 object MemClkCross extends App {
   case class MemClkCross() extends Component {
     val io = new Bundle {

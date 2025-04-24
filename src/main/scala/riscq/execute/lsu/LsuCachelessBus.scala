@@ -62,31 +62,32 @@ case class LsuCachelessBus(p : LsuCachelessBusParam) extends Bundle with IMaster
   }
 }
 
-class LsuCachelessBramConnectArea(lsu: LsuCachelessPlugin, port: MemReadWritePort[Bits]) extends Area {
+class LsuCachelessBramConnectArea(lsu: LsuCachelessBusProvider, port: MemReadWritePort[Bits]) extends Area {
   val logic = Fiber build new Area {
-    port.enable := lsu.logic.bus.cmd.valid
+    val bus = lsu.getLsuCachelessBus()
+    port.enable := bus.cmd.valid
     port.mask.setAllTo(True)
-    port.address := lsu.logic.bus.cmd.address(2, port.address.getBitsWidth bit)
-    port.write := lsu.logic.bus.cmd.write
-    port.wdata := lsu.logic.bus.cmd.data
+    port.address := bus.cmd.address(2, port.address.getBitsWidth bit)
+    port.write := bus.cmd.write
+    port.wdata := bus.cmd.data
 
-    val id1 = RegNext(lsu.logic.bus.cmd.id)
+    val id1 = RegNext(bus.cmd.id)
     val id2 = RegNext(id1)
-    val valid1 = RegNext(lsu.logic.bus.cmd.valid)
+    val valid1 = RegNext(bus.cmd.valid)
     val valid2 = RegNext(valid1)
 
-    when(lsu.logic.bus.cmd.valid && lsu.logic.bus.cmd.write && !valid1 && !valid2) {
-      id2 := lsu.logic.bus.cmd.id
+    when(bus.cmd.valid && bus.cmd.write && !valid1 && !valid2) {
+      id2 := bus.cmd.id
       valid2 := True
       valid1 := False
     }
 
     val word = RegNext(port.rdata)
 
-    lsu.logic.bus.rsp.id := id2
-    lsu.logic.bus.rsp.error := False
-    lsu.logic.bus.rsp.data := word
-    lsu.logic.bus.rsp.valid := valid2
-    lsu.logic.bus.cmd.ready := True
+    bus.rsp.id := id2
+    bus.rsp.error := False
+    bus.rsp.data := word
+    bus.rsp.valid := valid2
+    bus.cmd.ready := True
   }
 }

@@ -11,7 +11,7 @@ import riscq.decode.Decode
 import riscq.regfile._
 import riscq.schedule.PipelinePlugin
 
-class RegReadPlugin(val syncRead: Boolean, val rfReadAt: Int, val enableBypass: Boolean = false) extends FiberPlugin {
+class RegReadPlugin(val rfReadAt: Int, val enableBypass: Boolean) extends FiberPlugin {
   val elaborationLock = Retainer()
   
   val rfStageables = mutable.LinkedHashMap[RfResource, Payload[Bits]]()

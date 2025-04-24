@@ -7,7 +7,6 @@ import riscq.{Global, riscv}
 import spinal.core.fiber.{Handle, Retainer}
 import spinal.core.sim.SimDataPimper
 import riscq.decode.Decode
-import riscq.memory.DBusAccessService
 import riscq.riscv.Riscv.{LSLEN, XLEN}
 import riscq.riscv.Riscv
 import riscq.riscv.MicroOp
@@ -29,17 +28,14 @@ object AddressToMask {
 }
 
 class LsuCachelessPlugin(
-    var addressAt: Int = 0,
-    var forkAt: Int = 0,
-    var joinAt: Int = 1,
-    var wbAt: Int = 2
+    var addressAt: Int,
+    var forkAt: Int,
+    var joinAt: Int,
+    var wbAt: Int
 ) extends ExecutionUnit
-    with DBusAccessService
     with LsuCachelessBusProvider {
 
   val WITH_RSP = Payload(Bool())
-  override def accessRefillCount: Int = 0
-  override def accessWake: Bits = B(0)
   override def getLsuCachelessBus(): LsuCachelessBus = logic.bus
 
   def bufferSize = joinAt - forkAt + 1
@@ -119,8 +115,6 @@ class LsuCachelessPlugin(
     }
 
     val bus = master(LsuCachelessBus(busParam)).simPublic()
-
-    accessRetainer.await()
 
     val rrp = host[RegReadPlugin]
     val onFirst = new pp.Execute(0) {

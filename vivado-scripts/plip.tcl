@@ -2,25 +2,25 @@ ipx::package_project -root_dir ${BUILD_PREFIX}/ip -vendor user.org -library user
 ipx::unload_core ${BUILD_PREFIX}/ip/component.xml
 ipx::open_ipxact_file ${BUILD_PREFIX}/ip/component.xml
 
-ipx::add_bus_parameter FREQ_HZ [ipx::get_bus_interfaces clk100m -of_objects [ipx::current_core]]
-set_property value {100000000} [ipx::get_bus_parameters FREQ_HZ -of_objects [ipx::get_bus_interfaces clk100m -of_objects [ipx::current_core]]]
-ipx::add_bus_parameter FREQ_HZ [ipx::get_bus_interfaces clk500m -of_objects [ipx::current_core]]
-set_property value {500000000} [ipx::get_bus_parameters FREQ_HZ -of_objects [ipx::get_bus_interfaces clk500m -of_objects [ipx::current_core]]]
+ipx::add_bus_parameter FREQ_HZ [ipx::get_bus_interfaces hostClk -of_objects [ipx::current_core]]
+set_property value {100000000} [ipx::get_bus_parameters FREQ_HZ -of_objects [ipx::get_bus_interfaces hostClk -of_objects [ipx::current_core]]]
+ipx::add_bus_parameter FREQ_HZ [ipx::get_bus_interfaces dspClk -of_objects [ipx::current_core]]
+set_property value {500000000} [ipx::get_bus_parameters FREQ_HZ -of_objects [ipx::get_bus_interfaces dspClk -of_objects [ipx::current_core]]]
 
-ipx::associate_bus_interfaces -busif S_AXIS -clock clk100m [ipx::current_core]
-ipx::associate_bus_interfaces -busif S_AXIS -clock clk500m -remove [ipx::current_core]
+ipx::associate_bus_interfaces -busif S_AXIS -clock hostClk [ipx::current_core]
+ipx::associate_bus_interfaces -busif S_AXIS -clock dspClk -remove [ipx::current_core]
 
 for {set i 0} {$i < 4} {incr i} {
-    ipx::associate_bus_interfaces -busif DAC${i}_AXIS -clock clk500m [ipx::current_core]
-    ipx::associate_bus_interfaces -busif DAC${i}_AXIS -clock clk100m -remove [ipx::current_core]
-    ipx::associate_bus_interfaces -busif ADC${i}_AXIS -clock clk500m [ipx::current_core] 
-    ipx::associate_bus_interfaces -busif ADC${i}_AXIS -clock clk100m -remove [ipx::current_core]
+    ipx::associate_bus_interfaces -busif DAC${i}_AXIS -clock dspClk [ipx::current_core]
+    ipx::associate_bus_interfaces -busif DAC${i}_AXIS -clock hostClk -remove [ipx::current_core]
+    ipx::associate_bus_interfaces -busif ADC${i}_AXIS -clock dspClk [ipx::current_core] 
+    ipx::associate_bus_interfaces -busif ADC${i}_AXIS -clock hostClk -remove [ipx::current_core]
 }
 
-ipx::add_bus_parameter POLARITY [ipx::get_bus_interfaces rst100m -of_objects [ipx::current_core]]
-set_property value ACTIVE_HIGH [ipx::get_bus_parameters POLARITY -of_objects [ipx::get_bus_interfaces rst100m -of_objects [ipx::current_core]]]
-ipx::add_bus_parameter POLARITY [ipx::get_bus_interfaces rst500m -of_objects [ipx::current_core]]
-set_property value ACTIVE_HIGH [ipx::get_bus_parameters POLARITY -of_objects [ipx::get_bus_interfaces rst500m -of_objects [ipx::current_core]]]
+ipx::add_bus_parameter POLARITY [ipx::get_bus_interfaces hostRst -of_objects [ipx::current_core]]
+set_property value ACTIVE_HIGH [ipx::get_bus_parameters POLARITY -of_objects [ipx::get_bus_interfaces hostRst -of_objects [ipx::current_core]]]
+ipx::add_bus_parameter POLARITY [ipx::get_bus_interfaces dspRst -of_objects [ipx::current_core]]
+set_property value ACTIVE_HIGH [ipx::get_bus_parameters POLARITY -of_objects [ipx::get_bus_interfaces dspRst -of_objects [ipx::current_core]]]
 
 ipx::merge_project_changes ports [ipx::current_core]
 ipx::update_source_project_archive -component [ipx::current_core]

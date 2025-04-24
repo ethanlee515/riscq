@@ -16,7 +16,7 @@ import riscq.riscv.RegfileSpec
 import riscq.riscv.RD
 
 
-class HazardPlugin(rfReadAt: Int = -1, hazardAt: Int = -1, enableBypass: Boolean = false) extends FiberPlugin {
+class HazardPlugin(rfReadAt: Int, hazardAt: Int, enableBypass: Boolean) extends FiberPlugin {
   val elaborationLock = Retainer()
 
   val logic = during setup new Area{

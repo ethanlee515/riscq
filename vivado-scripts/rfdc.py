@@ -60,10 +60,10 @@ adc_map = {
     'ADC1': '01',
     'ADC2': '02',
     'ADC3': '03',
-    'ADC4': '10',
-    'ADC5': '11',
-    'ADC6': '12',
-    'ADC7': '13'
+    'ADC4': '30',
+    'ADC5': '31',
+    'ADC6': '32',
+    'ADC7': '33'
 }
 
 def dac_intf_to_tile(intf: str):
@@ -107,8 +107,8 @@ def connect_clk_rst(dac_tiles, adc_tiles):
     res += 'connect_bd_intf_net [get_bd_intf_ports sysref_in] [get_bd_intf_pins rf_data_converter/sysref_in]\n'
     res += 'connect_bd_intf_net [get_bd_intf_ports dac_clk] [get_bd_intf_pins rf_data_converter/dac2_clk]\n'
     res += 'connect_bd_intf_net [get_bd_intf_ports adc_clk] [get_bd_intf_pins rf_data_converter/adc2_clk]\n'
-    # res += 'connect_bd_net -net rf_data_converter_clk [get_bd_pins ibufds_clk500m/IBUF_OUT] [get_bd_pins ${RISCQ}/clk500m] [get_bd_pins ${DSP_RST}/slowest_sync_clk]'
-    res += 'connect_bd_net -net rf_data_converter_clk [get_bd_pins ${CLKIFC}/clk500m]'
+    # res += 'connect_bd_net -net rf_data_converter_clk [get_bd_pins ibufds_dspClk/IBUF_OUT] [get_bd_pins ${RISCQ}/dspClk] [get_bd_pins ${DSP_RST}/slowest_sync_clk]'
+    res += 'connect_bd_net -net rf_data_converter_clk [get_bd_pins ${CLKIFC}/dspClk]'
     # for i in dac_tiles:
     for i in range(4):
         res += f' [get_bd_pins rf_data_converter/s{i}_axis_aclk]'
@@ -116,8 +116,8 @@ def connect_clk_rst(dac_tiles, adc_tiles):
     for i in range(4):
         res += f' [get_bd_pins rf_data_converter/m{i}_axis_aclk]'
     res += '\n'
-    # res += 'connect_bd_net [get_bd_pins ibufds_clk100m/IBUF_OUT] [get_bd_pins rf_data_converter/s_axi_aclk]\n'
-    res += 'connect_bd_net [get_bd_pins ${CLKIFC}/clk100m] [get_bd_pins rf_data_converter/s_axi_aclk]\n'
+    # res += 'connect_bd_net [get_bd_pins ibufds_hostClk/IBUF_OUT] [get_bd_pins rf_data_converter/s_axi_aclk]\n'
+    res += 'connect_bd_net [get_bd_pins ${CLKIFC}/hostClk] [get_bd_pins rf_data_converter/s_axi_aclk]\n'
     res += 'connect_bd_net -net rf_data_converter_reset [get_bd_pins dsp_rst/peripheral_aresetn]'
     # for i in dac_tiles:
     for i in range(4):

@@ -11,16 +11,14 @@ int main() {
 
   for(int i = 0; i < 5; ++i) {
     int x = READ_INT32(MTIMEWAIT);
-    WRITE_INT32(MTIMECMP, start_time + TIME_NS(30));
 
-    SET_PULSE_FREQ(2, freq);
     SET_START_TIME(start_time);
+    SET_PULSE_FREQ(2, freq);
     PULSE(2, PHASE_PI(0), 0x7fff, 0, TIME_NS(8));
 
-    WRITE_INT32(MTIMECMP, start_time + TIME_NS(30));
-
-    freq += freq_step;
     start_time += time_step;
+    WRITE_INT32(MTIMECMP, start_time - TIME_NS(140));
+    freq += freq_step;
   }
 
   return 0;

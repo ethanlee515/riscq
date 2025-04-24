@@ -17,9 +17,9 @@ import riscq.Global
 
 class WriteBackPlugin(val rf : RegfileSpec,
                       var writeAt : Int,
-                      var allowBypassFrom : Int = 1
+                      var allowBypassFrom : Int
                       ) extends FiberPlugin with RegFileWriterService{
-  assert(allowBypassFrom >= 1)
+  assert(allowBypassFrom >= 0)
 
   val elaborationLock = Retainer()
 

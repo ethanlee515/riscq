@@ -48,6 +48,7 @@ case class FreqPhaseBatchGenerator(
   }
 
   val valid = Reg(Bool()) init True
+  valid.addAttribute("MAX_FANOUT", 32)
   io.freq.ready := valid
   io.phases.valid := valid
 

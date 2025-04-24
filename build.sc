@@ -15,6 +15,7 @@ object q extends SbtModule {
     ivy"org.scalatest::scalatest:3.2.17",
     ivy"org.yaml:snakeyaml:1.8",
     ivy"net.fornwall:jelf:0.7.0",
+    ivy"com.lihaoyi:upickle:4.1.0"
   )
   def moduleDeps = Seq(
     spinalCore(scalaVer),

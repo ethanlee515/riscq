@@ -20,3 +20,4 @@ build
 bench
 *.elf
 tmp
+*.o

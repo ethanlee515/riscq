@@ -24,7 +24,7 @@ import riscq.misc.XilinxRfsocTarget
 object MinimalSocPlugins {
   def getplugins(
     wordWidth: Int = 32, 
-    regFileSync: Boolean = true,
+    regFileSync: Boolean = false,
     enableBypass: Boolean = true
     ) = new Area {
     val plugins = ArrayBuffer[FiberPlugin]()
@@ -49,14 +49,15 @@ object MinimalSocPlugins {
       maskReadDuringWrite = false
     )
     val rfReadAt = -1 - regFileSync.toInt
-    plugins += new execute.RegReadPlugin(syncRead = true, rfReadAt = rfReadAt, enableBypass = enableBypass)
+    plugins += new execute.RegReadPlugin(rfReadAt = rfReadAt, enableBypass = enableBypass)
     plugins += new execute.SrcPlugin(executeAt = 0, relaxedRs = true)
     plugins += new schedule.HazardPlugin(rfReadAt = rfReadAt, hazardAt = rfReadAt, enableBypass = enableBypass)
-    plugins += new execute.WriteBackPlugin(riscv.IntRegFile, writeAt = 2)
+    plugins += new execute.WriteBackPlugin(riscv.IntRegFile, writeAt = 2, allowBypassFrom = 0)
     plugins += new execute.IntFormatPlugin()
     plugins += new execute.IntAluPlugin(executeAt = 0, formatAt = 0)
-    plugins += new execute.BranchPlugin()
-    plugins += new execute.lsu.LsuCachelessPlugin()
+    plugins += new execute.BranchPlugin(aluAt = 0, jumpAt = 1, wbAt = 0)
+    // plugins += new execute.lsu.LsuCachelessPlugin(addressAt = 0, forkAt = 0, joinAt = 1, wbAt = 2)
+    plugins += new execute.lsu.LsuCachelessNoRspStorePlugin(addressAt = 0, forkAt = 0, joinAt = 1, wbAt = 2)
     // plugins += new test.WhiteboxerPlugin()
   }
 }
@@ -74,7 +75,7 @@ case class MinimalSoc(whiteboxer: Boolean = false, wordWidth: Int = 32, regFileS
     case p: fetch.FetchCachelessPlugin => {
       new fetch.FetchCachelessBramConnectArea(p, iMem.readWriteSyncPort(maskWidth = wordWidth / 8))
     }
-    case p: execute.lsu.LsuCachelessPlugin => {
+    case p: execute.lsu.LsuCachelessBusProvider => {
       new execute.lsu.LsuCachelessBramConnectArea(p, dMem.readWriteSyncPort(maskWidth = 32 / 8))
     }
     case _ =>
@@ -94,7 +95,7 @@ object BenchMinimalSoc extends App {
       MinimalSoc(regFileSync = false)
     )
   )
-  Bench(List(rtl), XilinxRfsocTarget(), "./build/")
+  Bench(List(rtl), XilinxRfsocTarget(1000 MHz), "./build/")
 }
 
 // - Virtex UltraScale+ -> 604 Mhz 727 LUT 882 FF 0 BRAM 0 URAM

@@ -39,9 +39,9 @@ proc create {SUFFIX} {
 }
 
 proc synth {} {
-    #set_property strategy Flow_PerfOptimized_high [get_runs synth_1]
+    set_property strategy Flow_PerfOptimized_high [get_runs synth_1]
     # set_property STEPS.SYNTH_DESIGN.ARGS.RETIMING true [get_runs synth_1]
-    set_property STEPS.SYNTH_DESIGN.ARGS.GLOBAL_RETIMING on [get_runs synth_1]
+    # set_property STEPS.SYNTH_DESIGN.ARGS.GLOBAL_RETIMING on [get_runs synth_1]
     # set_property -name {STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS} -value {-mode out_of_context} -objects [get_runs synth_1]
     # set_property STEPS.SYNTH_DESIGN.ARGS.FLATTEN_HIERARCHY none [get_runs synth_1]
     launch_runs synth_1
@@ -49,8 +49,9 @@ proc synth {} {
 }
 
 proc impl {} {
-    set_property STEPS.PLACE_DESIGN.ARGS.DIRECTIVE Explore [get_runs impl_1]
-    set_property STEPS.ROUTE_DESIGN.ARGS.DIRECTIVE AggressiveExplore [get_runs impl_1]
+    # set_property STEPS.PLACE_DESIGN.ARGS.DIRECTIVE Explore [get_runs impl_1]
+    # set_property STEPS.ROUTE_DESIGN.ARGS.DIRECTIVE AggressiveExplore [get_runs impl_1]
+    set_property strategy "Performance_NetDelay_high" [get_runs impl_1]
     set_property STEPS.POST_ROUTE_PHYS_OPT_DESIGN.IS_ENABLED true [get_runs impl_1]
     launch_runs impl_1 -to_step write_bitstream
     wait_on_run impl_1

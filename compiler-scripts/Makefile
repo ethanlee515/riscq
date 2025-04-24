@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS=-march=rv32i -nostdlib -O1
+CFLAGS=-march=rv32i -nostdlib -O3
 
 # Get all .c files
 SRCS := $(wildcard *.c)
@@ -11,7 +11,7 @@ TGTS := $(SRCS:.c=.elf)
 
 .PHONY: all
 
-all: $(TGTS)
+all: clean $(TGTS)
 	llvm-objdump -d pg_test.elf
 
 %.o: %.c
