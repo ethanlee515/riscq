@@ -7,6 +7,22 @@
 // import riscq.decode.Decode
 // import riscq.schedule.PipelinePlugin
 
+/* 
+  def dcgIdOffset(i: Int) = dcgStep * i
+  def dcgFreqOffset(i: Int) = dcgIdOffset(i) + 0
+  def dcgPhaseOffset(i: Int) = dcgIdOffset(i) + 4
+ */
+
+    /*
+    val dcgs = List.fill(qubitNum) {
+      pulse.DemodCarrierGenerator(
+        batchSize = demodBatchSize,
+        dataWidth = dataWidth,
+        timeWidth = 32
+      )
+    }
+    */
+
 // class CarrierPlugin(specs: Seq[CarrierGeneratorSpec], idWidth: Int = 5) extends ExecutionUnit {
 
 //   val logic = during setup new Area {

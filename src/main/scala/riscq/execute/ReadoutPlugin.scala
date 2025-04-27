@@ -1,3 +1,25 @@
+/* 
+  def rdIdOffset(i: Int) = rdStep * i
+  def rdDurOffset(i: Int) = rdIdOffset(i) + 0
+  def rdRefROffset(i: Int) = rdIdOffset(i) + 4
+  def rdRefIOffset(i: Int) = rdIdOffset(i) + 8
+  def rdResOffset(i: Int) = rdIdOffset(i) + 12
+ */
+
+ 
+    /*
+    val readAccWidth = 27
+    val rds = List.fill(qubitNum)(
+      pulse.ReadoutDecoder(
+        batchSize = demodBatchSize,
+        inWidth = dataWidth,
+        accWidth = readAccWidth,
+        durWidth = demodDurWidth,
+        timeWidth = 32
+      )
+    )
+    */
+
 // package riscq.execute
 
 // import spinal.core._
