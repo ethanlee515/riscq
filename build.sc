@@ -15,7 +15,6 @@ object q extends SbtModule {
     ivy"org.scalatest::scalatest:3.2.17",
     ivy"org.yaml:snakeyaml:1.8",
     ivy"net.fornwall:jelf:0.7.0",
-    ivy"com.lihaoyi:upickle:4.1.0"
   )
   def moduleDeps = Seq(
     spinalCore(scalaVer),
@@ -23,10 +22,4 @@ object q extends SbtModule {
     idslPlugin
   )
   def scalacOptions = super.scalacOptions() ++ idslPlugin.pluginOptions()
-  // def ivyDeps = Agg(
-  //   ivy"com.github.spinalhdl::spinalhdl-core:$spinalVersion",
-  //   ivy"com.github.spinalhdl::spinalhdl-lib:$spinalVersion"
-  // )
-  // def scalacPluginIvyDeps = Agg(ivy"com.github.spinalhdl::spinalhdl-idsl-plugin:$spinalVersion")
-
 }
