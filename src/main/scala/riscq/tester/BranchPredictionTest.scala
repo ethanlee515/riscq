@@ -4,13 +4,14 @@ import spinal.core._
 import spinal.core.sim._
 import spinal.lib._
 import riscq.soc.MinimalSoc
+import riscq.soc.BranchPredictSoc
 import riscq.tester.ByteHelper
 import riscq.test
 import riscq.tester.RvAssembler
 
-class Driver(dut: MinimalSoc) {
+class Driver(dut: BranchPredictSoc) {
   val cd = dut.clockDomain
-  val wb = dut.riscq.host[test.WhiteboxerPlugin].logic
+  val wb = dut.riscq.host[test.RegReaderPlugin].logic
 
   def init() = {
     cd.forkStimulus(10)
@@ -42,8 +43,16 @@ class Driver(dut: MinimalSoc) {
   }
 }
 
+/* MinimalSoc test outputs:
+ * reached x4 = 50 at time = 9
+ * reached x4 = 53 at time = 11
+ * reached x4 = 55 at time = 19
+ * reached x4 = 56 at time = 27
+ * done at PC = 31
+*/
+
 object CountIterationCycles extends App {
-  SimConfig.compile(MinimalSoc(whiteboxer = true)).doSim { dut =>
+  SimConfig.compile(BranchPredictSoc(whiteboxer = true)).doSim { dut =>
     val driver = new Driver(dut)
     import driver._
     val asm = new RvAssembler(dut.wordWidth)
@@ -75,7 +84,7 @@ object CountIterationCycles extends App {
         val x4 = getRf(4)
         if (x4 == x4_value) {
           reached = true
-          println(f"reached x4 = ${x4_value} at PC = ${ticks}")
+          println(f"reached x4 = ${x4_value} at time = ${ticks}")
         } else {
           tick()
           ticks += 1
@@ -88,11 +97,15 @@ object CountIterationCycles extends App {
       val x5 = getRf(5)
       if(x5 != 0) {
         done = true
-        println(f"done at PC = ${ticks}")
+        println(f"done at time = ${ticks}")
       } else {
         tick()
         ticks += 1
       }
+    }
+
+    if(ticks >= fuel) {
+      println("out of fuel")
     }
   }
 }
