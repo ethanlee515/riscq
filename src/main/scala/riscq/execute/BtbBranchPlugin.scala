@@ -107,12 +107,12 @@ class BtbBranchPlugin(
     val writeBtb = new pp.Execute(aluAt) {
       val bfp = host[BtbFetchPlugin]
       val btb_table = bfp.logic.branch_targets
-      val addr = PC(2 until (2 + BtbParams.addr_size))
+      val addr = Fetch.WORD_PC(2 until (2 + BtbParams.addr_size))
       val entry = BtbEntry()
       entry.valid := True
       entry.targetPc := PC_TRUE(2 until PC_WIDTH)
-      entry.tag := PC.asBits((2 + BtbParams.addr_size) until PC_WIDTH)
-      btb_table.write(addr, entry)
+      entry.tag := Fetch.WORD_PC.asBits((2 + BtbParams.addr_size) until PC_WIDTH)
+      btb_table(addr) := entry
     }
 
     val alu = new pp.Execute(aluAt) {
@@ -137,14 +137,22 @@ class BtbBranchPlugin(
     }
 
     val jumpLogic = new pp.Execute(jumpAt) {
-      val doIt = isValid && SEL && alu.COND
-      val pcTarget = PC_TRUE
-
-      pcPort.valid := doIt
-      pcPort.pc := pcTarget
-
-      flushPort.valid := doIt
+      val bfp = host[BtbFetchPlugin]
+      // Maybe the `a ? b | c` operator doesn't like payloads?
+      when(alu.COND) {
+        pcPort.pc := PC_TRUE
+      } otherwise {
+        pcPort.pc := PC_FALSE
+      }
       flushPort.self := False
+      val predicted = bfp.logic.jump_predicted
+      when(isValid && SEL && (alu.COND =/= predicted)) {
+        pcPort.valid := True
+        flushPort.valid := True
+      } otherwise {
+        pcPort.valid := False
+        flushPort.valid := False
+      }
 
       val MISSALIGNED = insert(PC_TRUE(0, Fetch.PC_LOW bits) =/= 0 && alu.COND)
 
@@ -153,7 +161,6 @@ class BtbBranchPlugin(
       val rdLink = List[Bits](1, 5).map(Decode.INSTRUCTION(Const.rdRange) === _).orR
       val rs1Link = List[Bits](1, 5).map(Decode.INSTRUCTION(Const.rs1Range) === _).orR
       val rdEquRs1 = Decode.INSTRUCTION(Const.rdRange) === Decode.INSTRUCTION(Const.rs1Range)
-
     }
 
     val wbLogic = new pp.Execute(wbAt) {

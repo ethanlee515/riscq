@@ -8,10 +8,14 @@ import riscq.soc.BranchPredictSoc
 import riscq.tester.ByteHelper
 import riscq.test
 import riscq.tester.RvAssembler
+import riscq.execute.BtbBranchPlugin
+import riscq.fetch.BtbFetchPlugin
+import riscq.fetch.BtbParams
 
 class Driver(dut: BranchPredictSoc) {
   val cd = dut.clockDomain
   val wb = dut.riscq.host[test.RegReaderPlugin].logic
+  val btb = dut.riscq.host[BtbFetchPlugin].logic.branch_targets
 
   def init() = {
     cd.forkStimulus(10)
@@ -59,8 +63,8 @@ object CountIterationCycles extends App {
     import asm._
 
     val insts = List(
-      addi(3, 0, 3), // i = 3
-      addi(4, 0, 50), // s = 50
+      addi(3, 0, 5), // i = 5
+      addi(4, 0, 3), // s = 3
       // do {
       add(4, 4, 3), // s = s + i
       addi(3, 3, -1), // i = i - 1
@@ -72,12 +76,15 @@ object CountIterationCycles extends App {
     init()
     rstUp()
     loadIMem(0, insts)
+    for(i <- 0 until BtbParams.num_entries) {
+      btb.setBigInt(i, 0)
+    }
     tick()
     rstDown()
 
     var ticks = 0
     val fuel = 500
-    val x4_values = List(50, 53, 55, 56)
+    val x4_values = List(3, 8, 12, 15, 17, 18)
     for (x4_value <- x4_values) {
       var reached = false
       while (!reached && ticks < fuel) {
@@ -106,6 +113,10 @@ object CountIterationCycles extends App {
 
     if(ticks >= fuel) {
       println("out of fuel")
+    }
+
+    for(i <- 0 until 10) {
+      println(f"btb($i) = ${btb.getBigInt(i)}")
     }
   }
 }

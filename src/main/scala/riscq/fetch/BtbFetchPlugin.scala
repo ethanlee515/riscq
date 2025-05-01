@@ -10,6 +10,7 @@ import riscq.schedule.PipelinePlugin
 import spinal.lib.bus.tilelink
 import spinal.lib.bus.misc.SizeMapping
 import spinal.core.fiber.Fiber
+import spinal.core.sim.SimMemPimper
 
 object BtbParams {
   val addr_size = 6
@@ -60,11 +61,22 @@ class BtbFetchPlugin(
     // VIRTUAL_WIDTH.set(32)
     // val pp = host[FetchPipelinePlugin]
     val pp = host[PipelinePlugin]
+    val pcp = host[PcPlugin]
     for(i <- forkAt to joinAt){
       pp.fetch(i)
     }
+    val pcpRetainer = retains(pcp.elaborationLock)
     val buildBefore = retains(pp.elaborationLock)
+
+    /* -- branch prediction table -- */
+    val branch_targets = Mem(BtbEntry(), BtbParams.num_entries)
+    branch_targets.simPublic()
+
     awaitBuild()
+
+    val age = pp.feGetAge(forkAt + 1)
+    val pcPort = pcp.newJumpInterface(age)
+    pcpRetainer.release()
 
     Fetch.WORD_WIDTH.set(wordWidth)
 
@@ -72,9 +84,6 @@ class BtbFetchPlugin(
     val p = CachelessBusParam(PHYSICAL_WIDTH, Fetch.WORD_WIDTH, idCount, false)
     // val p = CachelessBusParam(32, Fetch.WORD_WIDTH, idCount, false)
     val bus = master(CachelessBus(p))
-
-    /* -- branch prediction table -- */
-    val branch_targets = Mem(BtbEntry(), BtbParams.num_entries)
 
     val BUFFER_ID = Payload(UInt(log2Up(idCount) bits)) // reserveId of current data
 
@@ -104,6 +113,7 @@ class BtbFetchPlugin(
       val cmdFork = forkStream(fresh)
       bus.cmd.arbitrationFrom(cmdFork.haltWhen(buffer.full)) // set valid and ready
       bus.cmd.id := buffer.reserveId // sending request
+
       bus.cmd.address := Fetch.WORD_PC  // set in PcPlugin
 
       BUFFER_ID := buffer.reserveId // id of the issued request
@@ -112,6 +122,22 @@ class BtbFetchPlugin(
         buffer.reserveId.increment() // fetch next data
       }
     }
+
+    val jump_prediction = new pp.Fetch(forkAt + 1) {
+      val addr = Fetch.WORD_PC(2 until (2 + BtbParams.addr_size))
+      val entry = branch_targets.readSync(addr)
+      val tag = Fetch.WORD_PC.asBits((2 + BtbParams.addr_size) until PC_WIDTH)
+      val in_table = entry.valid && (entry.tag === tag)
+      when(in_table) {
+        pcPort.valid := True
+        pcPort.pc := (entry.targetPc << 2)
+      } otherwise {
+        pcPort.setIdle()
+      }
+      val jump_predicted = insert(in_table)
+    }
+
+    val jump_predicted = jump_prediction.jump_predicted
 
     // using payload in pp.Fetch(forkAt) is equivalent to in pp.fetch(forkAt).down, but has access to haltWhen
     val join = new pp.Fetch(joinAt){
