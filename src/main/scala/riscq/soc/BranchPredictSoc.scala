@@ -52,7 +52,7 @@ case class BranchPredictSoc(whiteboxer: Boolean = false, wordWidth: Int = 32, re
   plugins += new execute.WriteBackPlugin(riscv.IntRegFile, writeAt = 2)
   plugins += new execute.IntFormatPlugin()
   plugins += new execute.IntAluPlugin(executeAt = 0, formatAt = 0)
-  plugins += new execute.BranchPlugin()
+  plugins += new execute.BtbBranchPlugin()
   plugins += new execute.lsu.LsuCachelessPlugin()
   plugins += new test.RegReaderPlugin()
 

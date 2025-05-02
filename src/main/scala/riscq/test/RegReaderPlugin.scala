@@ -27,11 +27,11 @@ import riscq.riscv.RS2
 import scala.collection.mutable.LinkedHashMap
 // import riscq.soc.MemoryMapPlugins
 
-class RegReaderPlugin() extends FiberPlugin{
+class RegReaderPlugin() extends FiberPlugin {
 
   // val logic = during setup new Logic()
   // class Logic extends Area{
-  val logic = during setup new Area{
+  val logic = during setup new Area {
     val pp = host[PipelinePlugin]
     val buildBefore = retains(pp.pipelineBuildLock)
 
@@ -49,8 +49,30 @@ class RegReaderPlugin() extends FiberPlugin{
       val p = rfp.get
       val mem = p.logic.regfile.fpga.asMem.ram
     }
+    val pcs = new Area {
+      val feCtrls = pp.feIdToCtrl.toList.sortBy(_._1).map(_._2)
+      val deCtrls = pp.deIdToCtrl.toList.sortBy(_._1).map(_._2)
+      val exCtrls = pp.exIdToCtrl.toList.sortBy(_._1).map(_._2)
+      val ctrls = feCtrls ++ deCtrls ++ exCtrls
+      val data = for (ctrl <- ctrls) yield new Area {
+        val ctrlName = ctrl.name
+        val forgetOne = wrap(ctrl.requests.forgetsOne.orR)
+        val valid = wrap(ctrl.isValid)
+        val ready = wrap(ctrl.up.isReady)
+        val pc = wrap(ctrl(Fetch.WORD_PC))
+      }
+    }
+    val exInsts = new Area {
+      val exCtrls = pp.exIdToCtrl.toList.sortBy(_._1).map(_._2)
+      val data = for (ctrl <- exCtrls) yield new Area {
+        val ctrlName = ctrl.name
+        val inst = wrap(ctrl(Decode.INSTRUCTION))
+        val valid = wrap(ctrl.isValid)
+        val ready = wrap(ctrl.isReady)
+        val pc = wrap(ctrl(Fetch.WORD_PC))
+      }
+    }
 
     buildBefore.release()
   }
 }
-

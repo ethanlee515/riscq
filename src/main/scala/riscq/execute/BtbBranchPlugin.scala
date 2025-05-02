@@ -20,6 +20,7 @@ import riscq.Global
 import riscq.fetch.BtbFetchPlugin
 import riscq.fetch.BtbParams
 import riscq.fetch.BtbEntry
+import _root_.spinal.core.sim.SimDataPimper
 
 class BtbBranchPlugin(
     var aluAt: Int = 0,
@@ -36,6 +37,7 @@ class BtbBranchPlugin(
     val pcp = host[PcPlugin]
     val pp = host[PipelinePlugin]
     val srcp = host[SrcPlugin]
+    val bfp = host[BtbFetchPlugin]
     val ioRetainer = retains(wbp.elaborationLock, sp.elaborationLock, pcp.elaborationLock)
     val buildBefore = retains(pp.elaborationLock)
 
@@ -73,10 +75,6 @@ class BtbBranchPlugin(
     uopRetainer.release()
     ioRetainer.release()
 
-    // Without prediction, the plugin can assume that there is no correction to do if no branch is needed
-    // leading to a simpler design.
-    // val withBtb = host.get[FetchWordPrediction].nonEmpty
-
     val pcCalc = new pp.Execute(aluAt) {
       val imm = IMM(Decode.INSTRUCTION)
       val target_a = BRANCH_CTRL.mux(
@@ -103,16 +101,28 @@ class BtbBranchPlugin(
     val PC_TRUE = pcCalc.PC_TRUE
     val PC_FALSE = pcCalc.PC_FALSE
 
-    // TODO different parameter for the stage
-    val writeBtb = new pp.Execute(aluAt) {
-      val bfp = host[BtbFetchPlugin]
+    // TODO different parameter for this stage?
+    val writeBtb = new pp.Execute(aluAt + 1) {
+      val sel = Bool()
+      sel := isValid && SEL
+      sel.simPublic()
+      val pctrue = UInt()
+      pctrue := PC_TRUE
+      pctrue.simPublic()
+      val pc = UInt()
+      pc := Fetch.WORD_PC
+      pc.simPublic()
       val btb_table = bfp.logic.branch_targets
       val addr = Fetch.WORD_PC(2 until (2 + BtbParams.addr_size))
+      val tag = Fetch.WORD_PC((2 + BtbParams.addr_size) until PC_WIDTH)
+      tag.simPublic()
       val entry = BtbEntry()
       entry.valid := True
-      entry.targetPc := PC_TRUE(2 until PC_WIDTH)
-      entry.tag := Fetch.WORD_PC.asBits((2 + BtbParams.addr_size) until PC_WIDTH)
-      btb_table(addr) := entry
+      entry.targetPc := pctrue
+      entry.tag := tag
+      when(isValid && SEL) {
+        btb_table.write(addr, entry)
+      }
     }
 
     val alu = new pp.Execute(aluAt) {

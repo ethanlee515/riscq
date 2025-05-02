@@ -11,6 +11,7 @@ import spinal.lib.bus.tilelink
 import spinal.lib.bus.misc.SizeMapping
 import spinal.core.fiber.Fiber
 import spinal.core.sim.SimMemPimper
+import riscq.schedule.ReschedulePlugin
 
 object BtbParams {
   val addr_size = 6
@@ -20,8 +21,8 @@ object BtbParams {
 
 case class BtbEntry() extends Bundle {
   val valid = Bool
-  val tag = Bits(BtbParams.tag_size bits)
-  val targetPc = UInt(30 bits)
+  val tag = UInt(BtbParams.tag_size bits)
+  val targetPc = UInt(32 bits)
 }
 
 class BtbFetchBramConnectArea(fcp: BtbFetchPlugin, port: MemReadWritePort[Bits]) extends Area {
@@ -60,12 +61,14 @@ class BtbFetchPlugin(
     PHYSICAL_WIDTH.set(32)
     // VIRTUAL_WIDTH.set(32)
     // val pp = host[FetchPipelinePlugin]
+    val sp = host[ReschedulePlugin]
     val pp = host[PipelinePlugin]
     val pcp = host[PcPlugin]
     for(i <- forkAt to joinAt){
       pp.fetch(i)
     }
     val pcpRetainer = retains(pcp.elaborationLock)
+    //val pcpRetainer = retains(pcp.elaborationLock, sp.elaborationLock)
     val buildBefore = retains(pp.elaborationLock)
 
     /* -- branch prediction table -- */
@@ -76,6 +79,8 @@ class BtbFetchPlugin(
 
     val age = pp.feGetAge(forkAt + 1)
     val pcPort = pcp.newJumpInterface(age)
+    //val flushPort = sp.newFlushPort(age)
+
     pcpRetainer.release()
 
     Fetch.WORD_WIDTH.set(wordWidth)
@@ -126,12 +131,15 @@ class BtbFetchPlugin(
     val jump_prediction = new pp.Fetch(forkAt + 1) {
       val addr = Fetch.WORD_PC(2 until (2 + BtbParams.addr_size))
       val entry = branch_targets.readSync(addr)
-      val tag = Fetch.WORD_PC.asBits((2 + BtbParams.addr_size) until PC_WIDTH)
+      val tag = Fetch.WORD_PC((2 + BtbParams.addr_size) until PC_WIDTH)
       val in_table = entry.valid && (entry.tag === tag)
       when(in_table) {
+        //flushPort.valid := True
+        //flushPort.self := False
         pcPort.valid := True
-        pcPort.pc := (entry.targetPc << 2)
+        pcPort.pc := entry.targetPc
       } otherwise {
+        //flushPort.setIdle()
         pcPort.setIdle()
       }
       val jump_predicted = insert(in_table)
