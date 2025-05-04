@@ -62,14 +62,6 @@ class Driver(dut: BranchPredictSoc) {
   }
 }
 
-/* MinimalSoc test outputs:
- * reached x4 = 50 at time = 9
- * reached x4 = 53 at time = 11
- * reached x4 = 55 at time = 19
- * reached x4 = 56 at time = 27
- * done at PC = 31
- */
-
 object CountIterationCycles extends App {
   SimConfig.compile(BranchPredictSoc(whiteboxer = true)).doSim { dut =>
     val driver = new Driver(dut)
@@ -78,14 +70,14 @@ object CountIterationCycles extends App {
     import asm._
 
     val insts = List(
-      addi(3, 0, 5), // i = 5
-      addi(4, 0, 3), // s = 3
+      addi(3, 0, 5), // 0; i = 5
+      addi(4, 0, 3), // 4; s = 3
       // do {
-      add(4, 4, 3), // s = s + i
-      addi(3, 3, -1), // i = i - 1
-      bne(3, 0, -8), // } while (i != 0)
-      addi(5, 0, 1), // done flag
-      beq(0, 0, 0)
+      add(4, 4, 3), // 8; s = s + i
+      addi(3, 3, -1), // c; i = i - 1
+      bne(3, 0, -8), // } 10; while (i != 0)
+      addi(5, 0, 1), // 14; done flag
+      beq(0, 0, 0) // 18
     )
 
     init()
@@ -100,7 +92,6 @@ object CountIterationCycles extends App {
     var ticks = 0
     val fuel = 500
 
-    /*
     val x4_values = List(3, 8, 12, 15, 17, 18)
     for (x4_value <- x4_values) {
       var reached = false
@@ -112,14 +103,11 @@ object CountIterationCycles extends App {
           println(f"reached x4 = ${x4} at time = ${ticks}")
         } else {
           tick()
-          //println(f"t = ${ticks}; addr = ${btb_addr}")
           ticks += 1
         }
       }
     }
-    */
 
-    /*
     var done = false
     while (ticks < fuel && !done) {
       val x5 = getRf(5)
@@ -127,30 +115,31 @@ object CountIterationCycles extends App {
         done = true
         println(f"done at time = ${ticks}")
       } else {
-        val sel = bbp.logic.writeBtb.sel.toBoolean
-        val pctrue = bbp.logic.writeBtb.pctrue.toBigInt
-        val pc = bbp.logic.writeBtb.pc.toBigInt
-        val tag = bbp.logic.writeBtb.tag.toBigInt
-        if (sel) {
-          println(f"btb write selected")
-          println(f"time = $ticks, pc = $pc, pctrue = $pctrue, tag = $tag")
-        }
+        // val sel = bbp.logic.writeBtb.sel.toBoolean
+        // val pctrue = bbp.logic.writeBtb.pctrue.toBigInt
+        // val pc = bbp.logic.writeBtb.pc.toBigInt
+        // val tag = bbp.logic.writeBtb.tag.toBigInt
+        // if (sel) {
+        //   println(f"btb write selected")
+        //   println(f"time = $ticks, pc = $pc, pctrue = $pctrue, tag = $tag")
+        // }
         tick()
         ticks += 1
       }
     }
-      */
 
+      /*
     for(i <- 0 until 30) {
       tick()
       ticks += 1
       println(f"t = $ticks")
       logPcs()
     }
+      */
 
-    // if (ticks >= fuel) {
-    //   println("out of fuel")
-    // }
+    if (ticks >= fuel) {
+      println("out of fuel")
+    }
 
     // for(i <- 0 until 20) {
     //   println(f"mem(${i}) = ${btb.getBigInt(i)}")

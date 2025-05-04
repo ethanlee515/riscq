@@ -14,7 +14,7 @@ import spinal.core.sim.SimMemPimper
 import riscq.schedule.ReschedulePlugin
 
 object BtbParams {
-  val addr_size = 6
+  val addr_size = 4
   val num_entries = (1 << addr_size)
   val tag_size = 30 - addr_size
 }
@@ -130,16 +130,13 @@ class BtbFetchPlugin(
 
     val jump_prediction = new pp.Fetch(forkAt + 1) {
       val addr = Fetch.WORD_PC(2 until (2 + BtbParams.addr_size))
-      val entry = branch_targets.readSync(addr)
+      val entry = branch_targets.readAsync(addr)
       val tag = Fetch.WORD_PC((2 + BtbParams.addr_size) until PC_WIDTH)
       val in_table = entry.valid && (entry.tag === tag)
       when(in_table) {
-        //flushPort.valid := True
-        //flushPort.self := False
         pcPort.valid := True
         pcPort.pc := entry.targetPc
       } otherwise {
-        //flushPort.setIdle()
         pcPort.setIdle()
       }
       val jump_predicted = insert(in_table)

@@ -149,11 +149,7 @@ class BtbBranchPlugin(
     val jumpLogic = new pp.Execute(jumpAt) {
       val bfp = host[BtbFetchPlugin]
       // Maybe the `a ? b | c` operator doesn't like payloads?
-      when(alu.COND) {
-        pcPort.pc := PC_TRUE
-      } otherwise {
-        pcPort.pc := PC_FALSE
-      }
+      pcPort.pc := alu.COND.mux(this(PC_TRUE), this(PC_FALSE))
       flushPort.self := False
       val predicted = bfp.logic.jump_predicted
       when(isValid && SEL && (alu.COND =/= predicted)) {
