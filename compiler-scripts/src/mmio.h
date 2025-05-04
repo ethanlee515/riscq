@@ -1,6 +1,6 @@
 #include<stdint.h>
 
-#define WRITE_INT32(ADDR, DATA) *(volatile int32_t *)(ADDR) = DATA
+#define WRITE_INT32(ADDR, DATA) *(volatile int32_t *)(ADDR) = (DATA)
 #define WRITE_INT32_HIGH(ADDR, DATA) *(volatile int32_t *)(ADDR) = (DATA << 16)
 #define READ_INT32(ADDR) *(volatile int32_t *)(ADDR)
 
@@ -32,11 +32,11 @@
 #define SET_PULSE_PHASE(ID, PHASE) \
   WRITE_INT32_HIGH(PULSE_PHASE_ADDR(ID), PHASE);
 
-// #define PULSE(ID, ADDR, AMP, DUR, PHASE) \
-//   WRITE_INT32(PG_##ID##_ADDR, ADDR); \
-//   WRITE_INT32(PG_##ID##_AMP, AMP); \
-//   WRITE_INT32(PG_##ID##_DUR, DUR); \
-//   WRITE_INT32(PG_##ID##_PHASE, PHASE); \
+#define SET_RD_DUR(ID, DUR) \
+  WRITE_INT32_HIGH(RD_DUR_ADDR(ID), DUR);
+
+#define GET_RD_RES(ID) \
+  READ_INT32(RD_RES_ADDR(ID));
 
 #define PULSE(ID, PHASE, AMP, ADDR, DUR) \
   SET_PULSE_PHASE(ID, PHASE); \

@@ -2,29 +2,29 @@ CC=clang
 CFLAGS=-march=rv32i -nostdlib -O3
 
 # Get all .c files
-SRCS := $(wildcard *.c)
+SRCS := $(wildcard src/*.c)
 
-OBJS := $(SRCS:.c=.o)
+OBJS := $(patsubst src/%.c, build/%.o, $(SRCS))
+
 
 # Strip .c to get the executable names
-TGTS := $(SRCS:.c=.elf)
+TGTS := $(patsubst src/%.c, build/%.elf, $(SRCS))
 
 .PHONY: all
 
 all: clean $(TGTS)
-	llvm-objdump -d pg_test.elf
 
-%.o: %.c
+build/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@ 
 
-%.elf: start.o %.o
-	$(CC) $(CFLAGS) -Wl,-T,linker.ld -mno-relax $^ -o $@ 
+build/%.elf: build/start.o build/%.o
+	$(CC) $(CFLAGS) -Wl,-T,src/linker.ld -mno-relax $^ -o $@ 
 
-start.o: start.S
+build/start.o: src/start.S
 	$(CC) -mno-relax -c $< -o $@
 
 clean:
-	rm -f $(TGTS) $(OBJS) start.o
+	rm -f build/*
 
 
 	# ld.lld -T linker.ld -mno-relax -e _start $^ -o $@

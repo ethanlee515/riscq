@@ -6,7 +6,6 @@ SECTIONS
   . = 0x80000000;
 
   .text : {
-    KEEP(start.o(.text))     /* place entire .text from start.o first */
     *(.text)
   }
 
