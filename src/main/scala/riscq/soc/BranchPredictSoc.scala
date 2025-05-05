@@ -71,3 +71,10 @@ case class BranchPredictSoc(whiteboxer: Boolean = false, wordWidth: Int = 32, re
 
   val riscq = RiscQ(plugins)
 }
+
+object BenchBranchPrediction extends App {
+  val rtl = Rtl(SpinalVerilog {
+    BranchPredictSoc(whiteboxer = false)
+  })
+  Bench(List(rtl), XilinxRfsocTarget(), "./build/")
+}
