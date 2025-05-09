@@ -53,8 +53,10 @@ class BtbFetchBramConnectArea(fcp: BtbFetchPlugin, port: MemReadWritePort[Bits])
 // Mostly copied from `FetchCachelessPlugin`
 class BtbFetchPlugin(
     var wordWidth: Int,
-    var forkAt: Int = 0,
-    var joinAt: Int = 1,
+    var forkAt : Int = 0,
+    var btbAt : Int = 0,
+    var jumpAt : Int = 2,
+    var joinAt : Int = 2,
     var cmdForkPersistence: Boolean = true
 ) extends FiberPlugin {
   val logic = during setup new Area{
@@ -67,8 +69,7 @@ class BtbFetchPlugin(
     for(i <- forkAt to joinAt){
       pp.fetch(i)
     }
-    val pcpRetainer = retains(pcp.elaborationLock)
-    //val pcpRetainer = retains(pcp.elaborationLock, sp.elaborationLock)
+    val pcpRetainer = retains(pcp.elaborationLock, sp.elaborationLock)
     val buildBefore = retains(pp.elaborationLock)
 
     /* -- branch prediction table -- */
@@ -77,9 +78,9 @@ class BtbFetchPlugin(
 
     awaitBuild()
 
-    val age = pp.feGetAge(forkAt + 1)
+    val age = pp.feGetAge(jumpAt)
     val pcPort = pcp.newJumpInterface(age)
-    //val flushPort = sp.newFlushPort(age)
+    val flushPort = sp.newFlushPort(age)
 
     pcpRetainer.release()
 
@@ -128,18 +129,25 @@ class BtbFetchPlugin(
       }
     }
 
-    val jump_prediction = new pp.Fetch(forkAt + 1) {
+    val btb_get = new pp.Fetch(btbAt) {
       val addr = Fetch.WORD_PC(2 until (2 + BtbParams.addr_size))
-      val entry = branch_targets.readAsync(addr)
+      val entry = insert(branch_targets.readAsync(addr))
+    }
+
+    val jump_prediction = new pp.Fetch(jumpAt) {
+      val entry = btb_get.entry
       val tag = Fetch.WORD_PC((2 + BtbParams.addr_size) until PC_WIDTH)
       val in_table = entry.valid && (entry.tag === tag)
-      when(in_table) {
+      val jump_predicted = insert(isValid && in_table)
+      flushPort.self := False
+      when(jump_predicted) {
+        flushPort.valid := True
         pcPort.valid := True
         pcPort.pc := entry.targetPc
       } otherwise {
+        flushPort.valid := False
         pcPort.setIdle()
       }
-      val jump_predicted = insert(in_table)
     }
 
     val jump_predicted = jump_prediction.jump_predicted

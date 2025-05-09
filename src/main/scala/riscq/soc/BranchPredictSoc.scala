@@ -31,11 +31,7 @@ case class BranchPredictSoc(whiteboxer: Boolean = false, wordWidth: Int = 32, re
   plugins += new schedule.ReschedulePlugin()
   val pcPlugin = new fetch.PcPlugin()
   plugins += pcPlugin
-  plugins += new fetch.BtbFetchPlugin(
-    wordWidth = wordWidth,
-    forkAt = 0,
-    joinAt = 1
-  )
+  plugins += new fetch.BtbFetchPlugin(wordWidth = wordWidth)
   plugins += new decode.DecoderPlugin(decodeAt = 0)
   plugins += new regfile.RegFilePlugin(
     spec = riscv.IntRegFile,
@@ -70,6 +66,9 @@ case class BranchPredictSoc(whiteboxer: Boolean = false, wordWidth: Int = 32, re
   }
 
   val riscq = RiscQ(plugins)
+
+  // We need some output to avoid vivado removing everything in optimization
+  val dummyPort = slave port iMem.readWriteSyncPort(maskWidth = wordWidth / 8)
 }
 
 object BenchBranchPrediction extends App {
