@@ -66,7 +66,7 @@ class Driver(dut: QubicSoc) {
     for (inst <- insts) {
       val instInt = BigInt(inst, 2)
       dut.mem.mem.setBigInt(writeAddr, instInt)
-      writeAddr += 1
+      writeAddr += 4
     }
   }
 
@@ -156,7 +156,7 @@ object TestPulse extends App {
   simConfig
     .compile {
       val dut = QubicSoc(
-        qubitNum = 4,
+        qubitNum = 2,
         withVivado = false,
         withCocotb = false,
         withWhitebox = true,
@@ -179,13 +179,12 @@ object TestPulse extends App {
         // do {
         add(4, 4, 3), // 8; s = s + i
         addi(3, 3, -1), // c; i = i - 1
-        bne(3, 0, -8), // } 10; while (i != 0)
+        bne(3, 0, -8 * 4), // } 10; while (i != 0)
         addi(5, 0, 1), // 14; done flag
         beq(0, 0, 0) // 18
       )
 
       init()
-
       rstUp()
 
       val batchSize = 16

@@ -92,7 +92,7 @@ case class QubicSoc(
   val hostCd = ClockDomain(hostClk, hostRst)
   VivadoClkHelper.addInference(hostClk, hostRst, 100000000)
 
-  val pluginsArea = MMSocParams.getPlugins(qubitNum)
+  val pluginsArea = QubicSocParams.getPlugins(qubitNum)
   val plugins = pluginsArea.plugins
   if (withWhitebox) {
     plugins += new test.WhiteboxerPlugin()
@@ -233,6 +233,61 @@ case class QubicSoc(
     }
   }
 }
+
+case class QubicRfFiber(rfArea: RFArea) extends Area {
+  import MemMapReg._
+  val up = Node.up()
+
+  val logic = Fiber build new Area {
+    up.m2s.supported load tilelink.SlaveFactory.getSupported(
+      addressWidth = 22,
+      dataWidth = 32,
+      allowBurst = false,
+      proposed = up.m2s.proposed
+    )
+    up.s2m.none()
+
+    val factory = new tilelink.SlaveFactory(up.bus, false)
+
+    val startTimeAddr = 0x0000
+    rfArea.startTime.addAttribute("MAX_FANOUT", 16)
+    factory.write(rfArea.startTime, startTimeAddr)
+
+    val pgFactory = factory
+    val rdFactory = factory
+    val dcgFactory = factory
+
+    val pgs = rfArea.pgs
+    for ((pg, id) <- pgs.zipWithIndex) {
+      pgFactory.driveFlow(getDriveReg(pg.io.addr), pgTlOffset + pgAddrOffset(id), bitOffset = 16)
+      pgFactory.driveFlow(getDriveReg(pg.io.amp), pgTlOffset + pgAmpOffset(id), bitOffset = 16)
+      pgFactory.driveFlow(getDriveReg(pg.io.dur), pgTlOffset + pgDurOffset(id), bitOffset = 16)
+      pgFactory.driveFlow(getDriveReg(pg.io.freq), pgTlOffset + pgFreqOffset(id), bitOffset = 16)
+      pgFactory.driveFlow(getDriveReg(pg.io.phase), pgTlOffset + pgPhaseOffset(id), bitOffset = 16)
+    }
+
+    val dcgs = rfArea.dcgs
+    for ((dcg, id) <- dcgs.zipWithIndex) yield new Area {
+      dcgFactory.driveFlow(getDriveReg(dcg.io.freq), dcgTlOffset + dcgFreqOffset(id), bitOffset = 16)
+      dcgFactory.driveFlow(getDriveReg(dcg.io.phase), dcgTlOffset + dcgPhaseOffset(id), bitOffset = 16)
+    }
+
+    val rds = rfArea.rds
+    for ((rd, id) <- rds.zipWithIndex) {
+      rdFactory.driveFlow(getDriveReg(rd.io.dur), rdTlOffset + rdDurOffset(id), bitOffset = 16)
+
+      rdFactory.read(rd.io.res.payload, rdTlOffset + rdResOffset(id))
+      rdFactory.read(rd.io.real, rdTlOffset + rdRealOffset(id))
+      rdFactory.read(rd.io.imag, rdTlOffset + rdImagOffset(id))
+      rdFactory.onReadPrimitive(SingleMapping(rdTlOffset + rdResOffset(id)), haltSensitive = false, null) {
+        when(!rd.io.res.valid) {
+          rdFactory.writeHalt() // and readHalt
+        }
+      }
+    }
+  }
+}
+
 
 object GenQubicSocVivado extends App {
   SpinalConfig(
