@@ -95,32 +95,6 @@ class RvAssembler(wordWidth: Int) {
 }
 
 class QubicAssembler {
-  def setTime(resetTime: Int) = {
-    var res = ""
-    res += ByteHelper.intToBinStr(resetTime, 32)
-    res += "0" * 64
-    val opcode = "00000000000000000011000101111111"
-    res += opcode
-    res
-  }
-  def waiti(waitUntil: Int) = {
-    var res = ""
-    res += ByteHelper.intToBinStr(waitUntil, 32)
-    res += "0" * 64
-    val opcode = "00000000000000000011000111111111"
-    res += opcode
-    res
-  }
-  def carrier(freq: Int, phase: Int, id: Int = 0, freqWidth: Int = 16, phaseWidth: Int = 16): String = {
-    var res = ""
-    res += ByteHelper.intToBinStr(id, 5)
-    res += ByteHelper.intToBinStr(freq, freqWidth)
-    res += ByteHelper.intToBinStr(phase, phaseWidth)
-    val opcode = "011000011111111"
-    val zeroLength = 128 - res.length() - opcode.length()
-    res += "0" * zeroLength + opcode
-    res
-  }
   def pulse(start: Int, addr: Int, duration: Int, phase: Int, freq: Int, amp: Int, id: Int = 0): String = {
     import riscq.soc.QubicSocParams._
     var res = ""
@@ -134,34 +108,6 @@ class QubicAssembler {
     val opcode = "011000001111111"
     val zeroLength = 128 - res.length() - opcode.length()
     res += "0" * zeroLength + opcode
-    res
-  }
-  def readout(id: Int, time: Int, start: Int = 0): String = {
-    val startStr = ByteHelper.intToBinStr(start, 32)
-    val timeStr = ByteHelper.intToBinStr(time, 12)
-    var idStr = ByteHelper.intToBinStr(id, 5)
-    val opcode = "1111011"
-    val funct3 = "000"
-    val zeroLength = 128 - startStr.length - timeStr.length - idStr.length - funct3.length - 5 - opcode.length 
-    val res = startStr + "0"*zeroLength + timeStr + idStr + funct3 + "00000" + opcode
-    res
-  }
-  def rowbr(id: Int, rd: Int): String = {
-    var idStr = ByteHelper.intToBinStr(id, 5)
-    val rdStr = ByteHelper.intToBinStr(rd, 5)
-    val opcode = "1111011"
-    val funct3 = "001"
-    val zeroLength = 128 - idStr.length - funct3.length - rdStr.length - opcode.length
-    val res = "0"*zeroLength + idStr + funct3 + rdStr + opcode
-    res
-  }
-  def rowbi(id: Int, rd: Int): String = {
-    var idStr = ByteHelper.intToBinStr(id, 5)
-    val rdStr = ByteHelper.intToBinStr(rd, 5)
-    val opcode = "1111011"
-    val funct3 = "010"
-    val zeroLength = 128 - idStr.length - funct3.length - rdStr.length - opcode.length
-    val res = "0"*zeroLength + idStr + funct3 + rdStr + opcode
     res
   }
 }

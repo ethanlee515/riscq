@@ -153,92 +153,91 @@ object QubicTestConfig {
 
 object TestPulse extends App {
   import QubicTestConfig._
-  simConfig
-    .compile {
-      val dut = QubicSoc(
-        qubitNum = 2,
-        withVivado = false,
-        withCocotb = false,
-        withWhitebox = true,
-        withTest = true
-      )
-      dut.rfArea.pgs.map { _.io.simPublic() }
-      dut
-    }
-    .doSim { dut =>
-      val driver = new Driver(dut)
-      import driver._
-      val rvAsm = new RvAssembler(128)
-      import rvAsm._
-      val qbAsm = new QubicAssembler()
-      import qbAsm._
+  simConfig.compile {
+    val dut = QubicSoc(
+      qubitNum = 2,
+      withVivado = false,
+      withCocotb = false,
+      withWhitebox = true,
+      withTest = true
+    )
+    dut.rfArea.pgs.map { _.io.simPublic() }
+    dut
+  }
+  .doSim { dut =>
+    val driver = new Driver(dut)
+    import driver._
+    val rvAsm = new RvAssembler(128)
+    import rvAsm._
+    val qbAsm = new QubicAssembler()
+    import qbAsm._
 
-      val insts = List(
-        addi(3, 0, 5), // 0; i = 5
-        addi(4, 0, 3), // 4; s = 3
-        // do {
-        add(4, 4, 3), // 8; s = s + i
-        addi(3, 3, -1), // c; i = i - 1
-        bne(3, 0, -8 * 4), // } 10; while (i != 0)
-        addi(5, 0, 1), // 14; done flag
-        beq(0, 0, 0) // 18
-      )
-
-      init()
-      rstUp()
-
-      val batchSize = 16
-      val dataWidth = 16
+    val insts1 = List(
+      // time addr = 0xbff8
+      addi(1, 0, 0xbff8),
+      // time #= 0
+      sw(0, 0, 1),
+      // timecmp addr = 0x4000
+      addi(5, 0, 0x4000),
+      // timecmp #= 0
+      sw(0, 0, 5)
+    )
+    def loopbody(i : Int) = {
+      val start = (i + 1) * 100
+      val addr = 0
+      val dur = 4
+      val phase = 0
+      val freq = (i + 1) * (0.1 * (1 << 13)).toInt
+      val amp = 0x7fff
       val id = 2
-      for (i <- 0 until 100) {
-        val dt = if (i == 0) BigInt(1 << 12) else BigInt((1 << 15) - 1)
-        val batch = List.fill(batchSize)(dt)
-        val dataStr = batch.map { x => ByteHelper.intToBinStr(x, dataWidth) }.reduce { _ ++ _ }
-        dut.pulseMemFiber.pulseMems(id).mem.setBigInt(i, BigInt(dataStr, 2))
-      }
-      hostCd.waitRisingEdge()
-
-      loadInsts(0, insts)
-      tick(10)
-      rstDown()
-  
-      var ticks = 0
-      val fuel = 500
-  
-      val x4_values = List(3, 8, 12, 15, 17, 18)
-      for (x4_value <- x4_values) {
-        var reached = false
-        while (!reached && ticks < fuel) {
-          val x5 = getRf(5)
-          val x4 = getRf(4)
-          if (x4 == x4_value) {
-            reached = true
-            println(f"reached x4 = ${x4} at time = ${ticks}")
-          } else {
-            tick()
-            ticks += 1
-          }
-        }
-      }
-  
-      var done = false
-      while (ticks < fuel && !done) {
-        val x5 = getRf(5)
-        if (x5 != 0) {
-          done = true
-          println(f"done at time = ${ticks}")
-        } else {
-          tick()
-          ticks += 1
-        }
-      }
-  
-      if (ticks >= fuel) {
-        println("out of fuel")
-      }
-  
-      // for(i <- 0 until 20) {
-      //   println(f"mem(${i}) = ${btb.getBigInt(i)}")
-      // }
+      List(
+        // regs(0) := MTIMEWAIT
+        lw(0, 8, 5),         
+        pulse(start, addr, dur, phase, freq, amp, id),
+        // timecmp = start - 70
+        addi(2, 0, start - 70),
+        // MTIMECMP #= timecmp
+        sw(2, 0, 5),
+        // no-ops
+        nop,
+        nop,
+        nop
+      )
     }
+    val loop = List.tabulate(5)(loopbody).flatten
+    val insts = insts1 ++ loop ++ List(
+      // set done flag, and then loop forever
+      addi(5, 0, 1),
+      beq(0, 0, 0)
+    )
+
+    init()
+    rstUp()
+
+    val batchSize = 16
+    val dataWidth = 16
+    val id = 2
+    for (i <- 0 until 100) {
+      val dt = if (i == 0) BigInt(1 << 12) else BigInt((1 << 15) - 1)
+      val batch = List.fill(batchSize)(dt)
+      val dataStr = batch.map { x => ByteHelper.intToBinStr(x, dataWidth) }.reduce { _ ++ _ }
+      dut.pulseMemFiber.pulseMems(id).mem.setBigInt(i, BigInt(dataStr, 2))
+    }
+    hostCd.waitRisingEdge()
+
+    loadInsts(0, insts)
+    tick(10)
+    rstDown()
+
+    tick(30)
+    for (t <- 100 until 500 by 100) {
+      waitUntil(t - 1)
+      for (i <- 0 until 6) {
+        logTime()
+        logDac(id)
+        println("")
+        tick()
+      }
+    }
+  }
 }

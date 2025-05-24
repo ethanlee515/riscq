@@ -98,6 +98,9 @@ case class QubicSoc(
     plugins += new test.WhiteboxerPlugin()
   }
 
+  val pulsePlugin = new execute.PulsePlugin()
+  plugins += pulsePlugin
+
   val hostBusArea = hostCd(HostBusArea(withTest))
   def tlBus = hostBusArea.tlBus
   def axi = hostBusArea.axi
@@ -165,7 +168,8 @@ case class QubicSoc(
   clintFiber.up.setUpConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
 
   val rfArea = RFArea(qubitNum)
-  val rfFiber = RFFiber(rfArea)
+  new PulsePluginConnections(rfArea, pulsePlugin)
+  val rfFiber = QubicRfFiber(rfArea)
   rfFiber.up at SizeMapping(MemMapReg.rfBase, 1 << 22) of dBusArb
   rfFiber.up.setUpConnection(a = StreamPipe.FULL, d = StreamPipe.FULL)
   rfArea.time := clintFiber.time
@@ -234,6 +238,36 @@ case class QubicSoc(
   }
 }
 
+class PulsePluginConnections(rfArea : RFArea, pulsePlugin : execute.PulsePlugin) {
+  val logic = new Area {
+    val pgs = rfArea.pgs
+    for(pg <- pgs) {
+      // idle by default.
+      // otherwise, "latch detected".
+      pg.io.addr.setIdle()
+      pg.io.amp.setIdle()
+      pg.io.dur.setIdle()
+      pg.io.freq.setIdle()
+      pg.io.phase.setIdle()
+      // again set everywhere to prevent latches
+      pg.startTime.assignFromBits(pulsePlugin.logic.start)
+    }
+    when(pulsePlugin.logic.sel) {
+      pgs.onSel(pulsePlugin.logic.id.asUInt.resized) (pg => {
+        def drive[T <: Data](flow: Flow[T], data : Bits) = {
+          flow.payload.assignFromBits(data)
+          flow.valid := True
+        }
+        drive(pg.io.addr, pulsePlugin.logic.addr)
+        drive(pg.io.dur, pulsePlugin.logic.duration)
+        drive(pg.io.phase, pulsePlugin.logic.phase)
+        drive(pg.io.freq, pulsePlugin.logic.freq)
+        drive(pg.io.amp, pulsePlugin.logic.amp)
+      })
+    }
+  }
+}
+
 case class QubicRfFiber(rfArea: RFArea) extends Area {
   import MemMapReg._
   val up = Node.up()
@@ -249,9 +283,7 @@ case class QubicRfFiber(rfArea: RFArea) extends Area {
 
     val factory = new tilelink.SlaveFactory(up.bus, false)
 
-    val startTimeAddr = 0x0000
     rfArea.startTime.addAttribute("MAX_FANOUT", 16)
-    factory.write(rfArea.startTime, startTimeAddr)
 
     val pgFactory = factory
     val rdFactory = factory
