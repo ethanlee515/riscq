@@ -94,12 +94,11 @@ case class QubicSoc(
 
   val pluginsArea = QubicSocParams.getPlugins(qubitNum)
   val plugins = pluginsArea.plugins
+  val pulsePlugin = new execute.PulsePlugin()
+  plugins += pulsePlugin
   if (withWhitebox) {
     plugins += new test.WhiteboxerPlugin()
   }
-
-  val pulsePlugin = new execute.PulsePlugin()
-  plugins += pulsePlugin
 
   val hostBusArea = hostCd(HostBusArea(withTest))
   def tlBus = hostBusArea.tlBus

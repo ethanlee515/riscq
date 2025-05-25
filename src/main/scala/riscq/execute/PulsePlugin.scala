@@ -21,6 +21,7 @@ class PulsePlugin() extends ExecutionUnit {
 
   val logic = during setup new Area {
     val sel = out Bool()
+    sel.simPublic()
     val start = out Bits(pulseStartWidth bits)
     val addr = out Bits(pulseAddrWidth bits)
     val duration = out Bits(pulseDurWidth bits)

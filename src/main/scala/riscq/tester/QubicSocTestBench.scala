@@ -190,19 +190,18 @@ object TestPulse extends App {
       val freq = (i + 1) * (0.1 * (1 << 13)).toInt
       val amp = 0x7fff
       val id = 2
-      List(
-        // regs(0) := MTIMEWAIT
-        lw(0, 8, 5),         
-        pulse(start, addr, dur, phase, freq, amp, id),
+      val insts = List(
         // timecmp = start - 70
         addi(2, 0, start - 70),
         // MTIMECMP #= timecmp
         sw(2, 0, 5),
-        // no-ops
-        nop,
-        nop,
-        nop
+        nop, nop, nop, nop,
+        // regs(0) := MTIMEWAIT
+        lw(0, 8, 5),
+        nop, nop, nop, nop,
+        pulse(start, addr, dur, phase, freq, amp, id),
       )
+      insts
     }
     val loop = List.tabulate(5)(loopbody).flatten
     val insts = insts1 ++ loop ++ List(
@@ -239,5 +238,17 @@ object TestPulse extends App {
         tick()
       }
     }
+    tick(30)
+
+/*
+    for(t <- 0 until 600) {
+      tick()
+      val pulse_sel = dut.pulsePlugin.logic.sel.toBoolean
+      if(pulse_sel) {
+        println(f"pulse instruction seen at dutTime ${dutTime}")
+      }
+    }
+*/
+    println(f"done flag = ${getRf(5)}")
   }
 }
