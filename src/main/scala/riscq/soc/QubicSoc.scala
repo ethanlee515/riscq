@@ -239,23 +239,23 @@ case class QubicSoc(
 }
 
 class PulsePluginConnections(rfArea : RFArea, pulsePlugin : execute.PulsePlugin) {
-  val logic = new Area {
+  val logic = Fiber build new Area {
+    rfArea.startTime.addAttribute("MAX_FANOUT", 16)
+    rfArea.startTime.assignFromBits(pulsePlugin.logic.start)
     val pgs = rfArea.pgs
+    // idle by default.
+    // otherwise, "latch detected".
     for(pg <- pgs) {
-      // idle by default.
-      // otherwise, "latch detected".
       pg.io.addr.setIdle()
       pg.io.amp.setIdle()
       pg.io.dur.setIdle()
       pg.io.freq.setIdle()
       pg.io.phase.setIdle()
-      // again set everywhere to prevent latches
-      pg.startTime.assignFromBits(pulsePlugin.logic.start)
     }
     when(pulsePlugin.logic.sel) {
       pgs.onSel(pulsePlugin.logic.id.asUInt.resized) (pg => {
         def drive[T <: Data](flow: Flow[T], data : Bits) = {
-          flow.payload.assignFromBits(data)
+          flow.payload.resized.assignFromBits(data)
           flow.valid := True
         }
         drive(pg.io.addr, pulsePlugin.logic.addr)
@@ -283,20 +283,8 @@ case class QubicRfFiber(rfArea: RFArea) extends Area {
 
     val factory = new tilelink.SlaveFactory(up.bus, false)
 
-    rfArea.startTime.addAttribute("MAX_FANOUT", 16)
-
-    val pgFactory = factory
     val rdFactory = factory
     val dcgFactory = factory
-
-    val pgs = rfArea.pgs
-    for ((pg, id) <- pgs.zipWithIndex) {
-      pgFactory.driveFlow(getDriveReg(pg.io.addr), pgTlOffset + pgAddrOffset(id), bitOffset = 16)
-      pgFactory.driveFlow(getDriveReg(pg.io.amp), pgTlOffset + pgAmpOffset(id), bitOffset = 16)
-      pgFactory.driveFlow(getDriveReg(pg.io.dur), pgTlOffset + pgDurOffset(id), bitOffset = 16)
-      pgFactory.driveFlow(getDriveReg(pg.io.freq), pgTlOffset + pgFreqOffset(id), bitOffset = 16)
-      pgFactory.driveFlow(getDriveReg(pg.io.phase), pgTlOffset + pgPhaseOffset(id), bitOffset = 16)
-    }
 
     val dcgs = rfArea.dcgs
     for ((dcg, id) <- dcgs.zipWithIndex) yield new Area {

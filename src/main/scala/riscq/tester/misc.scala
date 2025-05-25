@@ -92,6 +92,19 @@ class RvAssembler(wordWidth: Int) {
     res
   }
   def sw(rs2: Int, imm: Int, rs1: Int): String = typeS("0100011", "010", imm = imm, rs1 = rs1, rs2 = rs2)
+
+  def typeU(opcode: String, imm: Int, rd: Int): String = {
+    assert(opcode.length == 7)
+    val immStr = ByteHelper.intToBinStr(imm, 20)
+    var res = immStr
+    res += ByteHelper.intToBinStr(rd, 5)
+    res += opcode
+    assert(res.length == 32)
+    res = "0" * (wordWidth - 32) + res
+    res
+  }
+
+  def lui(rd: Int, imm20: Int) : String = typeU("0110111", imm20, rd)
 }
 
 class QubicAssembler {

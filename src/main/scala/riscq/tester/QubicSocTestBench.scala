@@ -174,11 +174,11 @@ object TestPulse extends App {
 
     val insts1 = List(
       // time addr = 0xbff8
-      addi(1, 0, 0xbff8),
+      lui(1, 0xc),
       // time #= 0
-      sw(0, 0, 1),
+      sw(0, -8, 1),
       // timecmp addr = 0x4000
-      addi(5, 0, 0x4000),
+      lui(5, 0x4),
       // timecmp #= 0
       sw(0, 0, 5)
     )
