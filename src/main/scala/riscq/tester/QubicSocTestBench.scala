@@ -228,6 +228,7 @@ object TestPulse extends App {
     tick(10)
     rstDown()
 
+/*
     tick(30)
     for (t <- 100 until 500 by 100) {
       waitUntil(t - 1)
@@ -238,17 +239,31 @@ object TestPulse extends App {
         tick()
       }
     }
-    tick(30)
+*/
 
-/*
     for(t <- 0 until 600) {
       tick()
       val pulse_sel = dut.pulsePlugin.logic.sel.toBoolean
+      val inst_addr = dut.pulsePlugin.logic.addr.toInt
+      val pgs = dut.rfArea.pgs
+      val amp = pgs(2).io.amp.payload.toDouble
+      val freq = pgs(2).io.freq.payload.toDouble
+      val phase = pgs(2).io.phase.payload.toDouble
+      val addr = pgs(2).io.addr.payload.toInt
+      val dur = pgs(2).io.dur.payload.toInt
       if(pulse_sel) {
         println(f"pulse instruction seen at dutTime ${dutTime}")
+        println(f"amp = ${amp}")
+        println(f"freq = ${freq}")
+        println(f"phase = ${phase}")
+        println(f"addr = ${addr}, inst_addr = ${addr}")
+        println(f"dur = ${dur}")
+      } else {
+//        println(f"addr = ${addr}")
       }
     }
-*/
+
+    tick(30)
     println(f"done flag = ${getRf(5)}")
   }
 }

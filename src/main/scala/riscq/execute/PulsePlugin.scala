@@ -9,7 +9,6 @@ import spinal.core.sim._
 import spinal.idslplugin.PostInitCallback
 import riscq.riscv.{MicroOp, RD, RfResource, SingleDecoding}
 import riscq.decode.DecoderSimplePlugin
-import riscq.Global._
 import riscq.decode.Decode
 import riscq.pulse._
 import riscq.schedule.PipelinePlugin
@@ -23,12 +22,19 @@ class PulsePlugin() extends ExecutionUnit {
     val sel = out Bool()
     sel.simPublic()
     val start = out Bits(pulseStartWidth bits)
+    start.simPublic()
     val addr = out Bits(pulseAddrWidth bits)
+    addr.simPublic()
     val duration = out Bits(pulseDurWidth bits)
+    duration.simPublic()
     val phase = out Bits(pulsePhaseWidth bits)
+    phase.simPublic()
     val freq = out Bits(pulseFreqWidth bits)
+    freq.simPublic()
     val amp = out Bits(pulseAmpWidth bits)
+    amp.simPublic()
     val id = out Bits(pulseIdWidth bits)
+    id.simPublic()
 
     val uop = addUop(SingleDecoding(M"-----------------011000001111111", Nil))
     uop.dontFlushFrom(1)
