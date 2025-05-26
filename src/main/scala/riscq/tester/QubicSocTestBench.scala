@@ -245,6 +245,7 @@ object TestPulse extends App {
       tick()
       val pulse_sel = dut.pulsePlugin.logic.sel.toBoolean
       val inst_addr = dut.pulsePlugin.logic.addr.toInt
+      val inst_id = dut.pulsePlugin.logic.id.toInt
       val pgs = dut.rfArea.pgs
       val amp = pgs(2).io.amp.payload.toDouble
       val freq = pgs(2).io.freq.payload.toDouble
@@ -256,8 +257,9 @@ object TestPulse extends App {
         println(f"amp = ${amp}")
         println(f"freq = ${freq}")
         println(f"phase = ${phase}")
-        println(f"addr = ${addr}, inst_addr = ${addr}")
+        println(f"addr = ${addr}, inst_addr = ${inst_addr}")
         println(f"dur = ${dur}")
+        println(f"inst.id = ${inst_id}")
       } else {
 //        println(f"addr = ${addr}")
       }
