@@ -66,7 +66,7 @@ class Driver(dut: QubicSoc) {
     for (inst <- insts) {
       val instInt = BigInt(inst, 2)
       dut.mem.mem.setBigInt(writeAddr, instInt)
-      writeAddr += 4
+      writeAddr += 1
     }
   }
 
@@ -228,19 +228,19 @@ object TestPulse extends App {
     tick(10)
     rstDown()
 
-/*
     tick(30)
     for (t <- 100 until 500 by 100) {
       waitUntil(t - 1)
-      for (i <- 0 until 6) {
+      for (i <- 0 until 8) {
         logTime()
         logDac(id)
         println("")
         tick()
       }
     }
-*/
 
+/*
+    var it = 0
     for(t <- 0 until 600) {
       tick()
       val pulse_sel = dut.pulsePlugin.logic.sel.toBoolean
@@ -254,19 +254,18 @@ object TestPulse extends App {
       val phase = pgs(2).io.phase.payload.toDouble
       val addr = pgs(2).io.addr.payload.toInt
       val dur = pgs(2).io.dur.payload.toInt
-      var i = 0
       if(pulse_sel) {
         println(f"dutTime = ${dutTime}")
         println(f"inst seen = ${pulse_inst.reverse}")
-        val start = (i + 1) * 100
+        val start = (it + 1) * 100
         val addr = 0
         val dur = 4
         val phase = 0
-        val freq = (i + 1) * (0.1 * (1 << 13)).toInt
+        val freq = (it + 1) * (0.1 * (1 << 13)).toInt
         val amp = 0x7fff
         val id = 2
         println(f"inst exp  = ${pulse(start, addr, dur, phase, freq, amp, id)}")
-        i = i + 1
+        it = it + 1
         println(f"amp = ${amp}")
         println(f"freq = ${freq}")
         println(f"phase = ${phase}")
@@ -277,6 +276,7 @@ object TestPulse extends App {
 //        println(f"addr = ${addr}")
       }
     }
+*/
 
     tick(30)
     println(f"done flag = ${getRf(5)}")

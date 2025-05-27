@@ -125,7 +125,7 @@ case class QubicSoc(
   // cpu memory
   val memOutReg = true
   val mem = DualClockRam(
-    width = 32,
+    width = 128,
     depth = 4096,
     slowCd = dspCd,
     fastCd = dspCd,
