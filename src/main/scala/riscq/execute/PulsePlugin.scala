@@ -35,6 +35,8 @@ class PulsePlugin() extends ExecutionUnit {
     amp.simPublic()
     val id = out Bits(pulseIdWidth bits)
     id.simPublic()
+    val pulse_inst = Bits(128 bits)
+    pulse_inst.simPublic()
 
     val uop = addUop(SingleDecoding(M"-----------------011000001111111", Nil))
     uop.dontFlushFrom(1)
@@ -59,6 +61,7 @@ class PulsePlugin() extends ExecutionUnit {
       start := instruction(startS, pulseStartWidth bits)
       addr := instruction(addrS, pulseAddrWidth bits)
       amp := instruction(ampS, pulseAmpWidth bits) 
+      pulse_inst := instruction
     }
     buildBefore.release()
   }

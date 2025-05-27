@@ -246,14 +246,27 @@ object TestPulse extends App {
       val pulse_sel = dut.pulsePlugin.logic.sel.toBoolean
       val inst_addr = dut.pulsePlugin.logic.addr.toInt
       val inst_id = dut.pulsePlugin.logic.id.toInt
+      val pulse_inst_bits = dut.pulsePlugin.logic.pulse_inst.toBooleans
+      val pulse_inst = pulse_inst_bits.map(x => if(x) "1" else "0").reduce(_ ++ _)
       val pgs = dut.rfArea.pgs
       val amp = pgs(2).io.amp.payload.toDouble
       val freq = pgs(2).io.freq.payload.toDouble
       val phase = pgs(2).io.phase.payload.toDouble
       val addr = pgs(2).io.addr.payload.toInt
       val dur = pgs(2).io.dur.payload.toInt
+      var i = 0
       if(pulse_sel) {
-        println(f"pulse instruction seen at dutTime ${dutTime}")
+        println(f"dutTime = ${dutTime}")
+        println(f"inst seen = ${pulse_inst.reverse}")
+        val start = (i + 1) * 100
+        val addr = 0
+        val dur = 4
+        val phase = 0
+        val freq = (i + 1) * (0.1 * (1 << 13)).toInt
+        val amp = 0x7fff
+        val id = 2
+        println(f"inst exp  = ${pulse(start, addr, dur, phase, freq, amp, id)}")
+        i = i + 1
         println(f"amp = ${amp}")
         println(f"freq = ${freq}")
         println(f"phase = ${phase}")
