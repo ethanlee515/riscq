@@ -162,6 +162,7 @@ object TestPulse extends App {
       withTest = true
     )
     dut.rfArea.pgs.map { _.io.simPublic() }
+    dut.rfArea.startTime.simPublic()
     dut
   }
   .doSim { dut =>
@@ -251,14 +252,14 @@ object TestPulse extends App {
       val inst_dur = dut.pulsePlugin.logic.duration.toInt
       val inst_freq = dut.pulsePlugin.logic.freq.toInt
       val inst_phase = dut.pulsePlugin.logic.phase.toInt
-//      val pulse_inst_bits = dut.pulsePlugin.logic.pulse_inst.toBooleans
-//      val pulse_inst = pulse_inst_bits.map(x => if(x) "1" else "0").reduce(_ ++ _)
+      val inst_start_time = dut.pulsePlugin.logic.start.toInt
       val pgs = dut.rfArea.pgs
       val amp = pgs(2).io.amp.payload.toDouble
       val freq = pgs(2).io.freq.payload.toDouble
       val phase = pgs(2).io.phase.payload.toDouble
       val addr = pgs(2).io.addr.payload.toInt
       val dur = pgs(2).io.dur.payload.toInt
+      val rfArea_start_time = dut.rfArea.startTime.toBigInt
       if(pulse_sel) {
         println(f"dutTime = ${dutTime}")
 //        println(f"inst seen = ${pulse_inst.reverse}")
@@ -268,6 +269,7 @@ object TestPulse extends App {
         println(f"addr = ${addr}, inst_addr = ${inst_addr}")
         println(f"dur = ${dur}, inst_dur = ${inst_dur}")
         println(f"inst.id = ${inst_id}")
+        println(f"start(rfArea) = ${rfArea_start_time}, start(inst) = ${inst_start_time}")
       }
     }
 

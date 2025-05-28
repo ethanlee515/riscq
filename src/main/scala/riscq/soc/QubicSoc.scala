@@ -240,8 +240,10 @@ case class QubicSoc(
 class PulsePluginConnections(rfArea : RFArea, pulsePlugin : execute.PulsePlugin) {
   import QubicSocParams._
   val logic = Fiber build new Area {
+    val start = UInt(pulseStartWidth bits)
+    start.assignFromBits(pulsePlugin.logic.start)
     rfArea.startTime.addAttribute("MAX_FANOUT", 16)
-    rfArea.startTime.assignFromBits(pulsePlugin.logic.start)
+    rfArea.startTime := start
     val pgs = rfArea.pgs
     // idle by default.
     // otherwise, "latch detected".
@@ -254,17 +256,6 @@ class PulsePluginConnections(rfArea : RFArea, pulsePlugin : execute.PulsePlugin)
     }
     when(pulsePlugin.logic.sel) {
       pgs.onSel(pulsePlugin.logic.id.asUInt.resized) (pg => {
-        /*
-        def drive[T <: Data](flow: Flow[T], data : Bits) = {
-          flow.payload.resized.assignFromBits(data)
-          flow.valid := True
-        }
-        drive(pg.io.addr, pulsePlugin.logic.addr)
-        drive(pg.io.dur, pulsePlugin.logic.duration)
-        drive(pg.io.phase, pulsePlugin.logic.phase)
-        drive(pg.io.freq, pulsePlugin.logic.freq)
-        drive(pg.io.amp, pulsePlugin.logic.amp)
-        */
         val addr = pulsePlugin.logic.addr.asUInt.resized
         pg.io.addr.push(addr)
         val dur = pulsePlugin.logic.duration.asUInt.resized
