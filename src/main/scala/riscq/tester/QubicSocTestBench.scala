@@ -228,6 +228,7 @@ object TestPulse extends App {
     tick(10)
     rstDown()
 
+/*
     tick(30)
     for (t <- 100 until 500 by 100) {
       waitUntil(t - 1)
@@ -238,16 +239,20 @@ object TestPulse extends App {
         tick()
       }
     }
+*/
 
-/*
     var it = 0
     for(t <- 0 until 600) {
       tick()
       val pulse_sel = dut.pulsePlugin.logic.sel.toBoolean
       val inst_addr = dut.pulsePlugin.logic.addr.toInt
       val inst_id = dut.pulsePlugin.logic.id.toInt
-      val pulse_inst_bits = dut.pulsePlugin.logic.pulse_inst.toBooleans
-      val pulse_inst = pulse_inst_bits.map(x => if(x) "1" else "0").reduce(_ ++ _)
+      val inst_amp = dut.pulsePlugin.logic.amp.toInt
+      val inst_dur = dut.pulsePlugin.logic.duration.toInt
+      val inst_freq = dut.pulsePlugin.logic.freq.toInt
+      val inst_phase = dut.pulsePlugin.logic.phase.toInt
+//      val pulse_inst_bits = dut.pulsePlugin.logic.pulse_inst.toBooleans
+//      val pulse_inst = pulse_inst_bits.map(x => if(x) "1" else "0").reduce(_ ++ _)
       val pgs = dut.rfArea.pgs
       val amp = pgs(2).io.amp.payload.toDouble
       val freq = pgs(2).io.freq.payload.toDouble
@@ -256,27 +261,15 @@ object TestPulse extends App {
       val dur = pgs(2).io.dur.payload.toInt
       if(pulse_sel) {
         println(f"dutTime = ${dutTime}")
-        println(f"inst seen = ${pulse_inst.reverse}")
-        val start = (it + 1) * 100
-        val addr = 0
-        val dur = 4
-        val phase = 0
-        val freq = (it + 1) * (0.1 * (1 << 13)).toInt
-        val amp = 0x7fff
-        val id = 2
-        println(f"inst exp  = ${pulse(start, addr, dur, phase, freq, amp, id)}")
-        it = it + 1
-        println(f"amp = ${amp}")
-        println(f"freq = ${freq}")
-        println(f"phase = ${phase}")
+//        println(f"inst seen = ${pulse_inst.reverse}")
+        println(f"amp = ${amp}, inst_amp = ${inst_amp}")
+        println(f"freq = ${freq}, inst_freq = ${inst_freq}")
+        println(f"phase = ${phase}, inst_phase = ${inst_phase}")
         println(f"addr = ${addr}, inst_addr = ${inst_addr}")
-        println(f"dur = ${dur}")
+        println(f"dur = ${dur}, inst_dur = ${inst_dur}")
         println(f"inst.id = ${inst_id}")
-      } else {
-//        println(f"addr = ${addr}")
       }
     }
-*/
 
     tick(30)
     println(f"done flag = ${getRf(5)}")

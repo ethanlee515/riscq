@@ -238,6 +238,7 @@ case class QubicSoc(
 }
 
 class PulsePluginConnections(rfArea : RFArea, pulsePlugin : execute.PulsePlugin) {
+  import QubicSocParams._
   val logic = Fiber build new Area {
     rfArea.startTime.addAttribute("MAX_FANOUT", 16)
     rfArea.startTime.assignFromBits(pulsePlugin.logic.start)
@@ -253,6 +254,7 @@ class PulsePluginConnections(rfArea : RFArea, pulsePlugin : execute.PulsePlugin)
     }
     when(pulsePlugin.logic.sel) {
       pgs.onSel(pulsePlugin.logic.id.asUInt.resized) (pg => {
+        /*
         def drive[T <: Data](flow: Flow[T], data : Bits) = {
           flow.payload.resized.assignFromBits(data)
           flow.valid := True
@@ -262,6 +264,20 @@ class PulsePluginConnections(rfArea : RFArea, pulsePlugin : execute.PulsePlugin)
         drive(pg.io.phase, pulsePlugin.logic.phase)
         drive(pg.io.freq, pulsePlugin.logic.freq)
         drive(pg.io.amp, pulsePlugin.logic.amp)
+        */
+        val addr = pulsePlugin.logic.addr.asUInt.resized
+        pg.io.addr.push(addr)
+        val dur = pulsePlugin.logic.duration.asUInt.resized
+        pg.io.dur.push(dur)
+        val phase = AFix.S(0 exp, pulsePhaseWidth bits)
+        phase.assignFromBits(pulsePlugin.logic.phase)
+        pg.io.phase.push(phase)
+        val freq = AFix.S(0 exp, pulseFreqWidth bits)
+        freq.assignFromBits(pulsePlugin.logic.freq)
+        pg.io.freq.push(freq)
+        val amp = AFix.S(0 exp, pulseFreqWidth bits)
+        amp.assignFromBits(pulsePlugin.logic.amp)
+        pg.io.amp.push(amp)
       })
     }
   }
