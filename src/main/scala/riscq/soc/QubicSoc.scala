@@ -244,32 +244,37 @@ class PulsePluginConnections(rfArea : RFArea, pulsePlugin : execute.PulsePlugin)
     start.assignFromBits(pulsePlugin.logic.start)
     rfArea.startTime.addAttribute("MAX_FANOUT", 16)
     rfArea.startTime := start
+    // call `getDriveReg` on everything
     val pgs = rfArea.pgs
+    import MemMapReg.getDriveReg
+    val pg_addrs = Vec(pgs.map(pg => getDriveReg(pg.io.addr)))
+    val pg_amps = Vec(pgs.map(pg => getDriveReg(pg.io.amp)))
+    val pg_durs = Vec(pgs.map(pg => getDriveReg(pg.io.dur)))
+    val pg_freqs = Vec(pgs.map(pg => getDriveReg(pg.io.freq)))
+    val pg_phs = Vec(pgs.map(pg => getDriveReg(pg.io.phase)))
     // idle by default.
     // otherwise, "latch detected".
-    for(pg <- pgs) {
-      pg.io.addr.setIdle()
-      pg.io.amp.setIdle()
-      pg.io.dur.setIdle()
-      pg.io.freq.setIdle()
-      pg.io.phase.setIdle()
-    }
+    pg_addrs.map(_.setIdle())
+    pg_amps.map(_.setIdle())
+    pg_durs.map(_.setIdle())
+    pg_freqs.map(_.setIdle())
+    pg_phs.map(_.setIdle())
+    // actual logic
     when(pulsePlugin.logic.sel) {
-      pgs.onSel(pulsePlugin.logic.id.asUInt.resized) (pg => {
-        val addr = pulsePlugin.logic.addr.asUInt.resized
-        pg.io.addr.push(addr)
-        val dur = pulsePlugin.logic.duration.asUInt.resized
-        pg.io.dur.push(dur)
-        val phase = AFix.S(0 exp, pulsePhaseWidth bits)
-        phase.assignFromBits(pulsePlugin.logic.phase)
-        pg.io.phase.push(phase)
-        val freq = AFix.S(0 exp, pulseFreqWidth bits)
-        freq.assignFromBits(pulsePlugin.logic.freq)
-        pg.io.freq.push(freq)
-        val amp = AFix.S(0 exp, pulseFreqWidth bits)
-        amp.assignFromBits(pulsePlugin.logic.amp)
-        pg.io.amp.push(amp)
-      })
+      val id = pulsePlugin.logic.id.asUInt.resized
+      val addr = pulsePlugin.logic.addr.asUInt.resized
+      pg_addrs(id).push(addr)
+      val dur = pulsePlugin.logic.duration.asUInt.resized
+      pg_durs(id).push(dur)
+      val phase = AFix.S(0 exp, pulsePhaseWidth bits)
+      phase.assignFromBits(pulsePlugin.logic.phase)
+      pg_phs(id).push(phase)
+      val freq = AFix.S(0 exp, pulseFreqWidth bits)
+      freq.assignFromBits(pulsePlugin.logic.freq)
+      pg_freqs(id).push(freq)
+      val amp = AFix.S(0 exp, pulseFreqWidth bits)
+      amp.assignFromBits(pulsePlugin.logic.amp)
+      pg_amps(id).push(amp)
     }
   }
 }

@@ -229,7 +229,6 @@ object TestPulse extends App {
     tick(10)
     rstDown()
 
-/*
     tick(30)
     for (t <- 100 until 500 by 100) {
       waitUntil(t - 1)
@@ -240,8 +239,8 @@ object TestPulse extends App {
         tick()
       }
     }
-*/
 
+/*
     var it = 0
     for(t <- 0 until 600) {
       tick()
@@ -272,6 +271,7 @@ object TestPulse extends App {
         println(f"start(rfArea) = ${rfArea_start_time}, start(inst) = ${inst_start_time}")
       }
     }
+*/
 
     tick(30)
     println(f"done flag = ${getRf(5)}")
