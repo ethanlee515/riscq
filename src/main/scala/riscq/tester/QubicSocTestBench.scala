@@ -277,3 +277,64 @@ object TestPulse extends App {
     println(f"done flag = ${getRf(5)}")
   }
 }
+
+object TestSinglePulse extends App {
+  import QubicTestConfig._
+  simConfig.compile {
+    val dut = QubicSoc(
+      qubitNum = 2,
+      withVivado = false,
+      withCocotb = false,
+      withWhitebox = true,
+      withTest = true
+    )
+    dut.rfArea.pgs.map { _.io.simPublic() }
+    dut.rfArea.startTime.simPublic()
+    dut
+  }
+  .doSim { dut =>
+    val driver = new Driver(dut)
+    import driver._
+    val rvAsm = new RvAssembler(128)
+    import rvAsm._
+    val qbAsm = new QubicAssembler()
+    import qbAsm._
+
+    val start = 100
+    val addr = 0
+    val dur = 4
+    val phase = 0
+    val freq = (0.1 * (1 << 13)).toInt
+    val amp = 0x7fff
+    val id = 2
+    val insts = List(
+      pulse(start, addr, dur, phase, freq, amp, id),
+      beq(0, 0, 0)
+    )
+
+    init()
+    rstUp()
+
+    val batchSize = 16
+    val dataWidth = 16
+    for (i <- 0 until 100) {
+      val dt = if (i == 0) BigInt(1 << 12) else BigInt((1 << 15) - 1)
+      val batch = List.fill(batchSize)(dt)
+      val dataStr = batch.map { x => ByteHelper.intToBinStr(x, dataWidth) }.reduce { _ ++ _ }
+      dut.pulseMemFiber.pulseMems(id).mem.setBigInt(i, BigInt(dataStr, 2))
+    }
+    hostCd.waitRisingEdge()
+
+    loadInsts(0, insts)
+    tick(10)
+    rstDown()
+
+    waitUntil(98)
+    for (i <- 0 until 8) {
+      logTime()
+      logDac(id)
+      println("")
+      tick()
+    }
+  }
+}
