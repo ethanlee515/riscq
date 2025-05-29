@@ -229,10 +229,10 @@ object TestPulse extends App {
     tick(10)
     rstDown()
 
-    tick(30)
-    for (t <- 100 until 500 by 100) {
+//    tick(30)
+    for (t <- 100 until 501 by 100) {
       waitUntil(t - 1)
-      for (i <- 0 until 8) {
+      for (i <- 0 until 6) {
         logTime()
         logDac(id)
         println("")
@@ -273,7 +273,7 @@ object TestPulse extends App {
     }
 */
 
-    tick(30)
+    tick(20)
     println(f"done flag = ${getRf(5)}")
   }
 }

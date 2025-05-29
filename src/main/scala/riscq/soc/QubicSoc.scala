@@ -240,18 +240,14 @@ case class QubicSoc(
 class PulsePluginConnections(rfArea : RFArea, pulsePlugin : execute.PulsePlugin) {
   import QubicSocParams._
   val logic = Fiber build new Area {
-    val start = UInt(pulseStartWidth bits)
-    start.assignFromBits(pulsePlugin.logic.start)
-    rfArea.startTime.addAttribute("MAX_FANOUT", 16)
-    rfArea.startTime := start
     // call `getDriveReg` on everything
     val pgs = rfArea.pgs
     import MemMapReg.getDriveReg
-    val pg_addrs = Vec(pgs.map(pg => getDriveReg(pg.io.addr)))
-    val pg_amps = Vec(pgs.map(pg => getDriveReg(pg.io.amp)))
-    val pg_durs = Vec(pgs.map(pg => getDriveReg(pg.io.dur)))
-    val pg_freqs = Vec(pgs.map(pg => getDriveReg(pg.io.freq)))
-    val pg_phs = Vec(pgs.map(pg => getDriveReg(pg.io.phase)))
+    val pg_addrs = Vec(pgs.map(pg => getDriveReg(pg.io.addr, depth=2)))
+    val pg_amps = Vec(pgs.map(pg => getDriveReg(pg.io.amp, depth=2)))
+    val pg_durs = Vec(pgs.map(pg => getDriveReg(pg.io.dur, depth=2)))
+    val pg_freqs = Vec(pgs.map(pg => getDriveReg(pg.io.freq, depth=2)))
+    val pg_phs = Vec(pgs.map(pg => getDriveReg(pg.io.phase, depth=2)))
     // idle by default.
     // otherwise, "latch detected".
     pg_addrs.map(_.setIdle())
@@ -261,6 +257,8 @@ class PulsePluginConnections(rfArea : RFArea, pulsePlugin : execute.PulsePlugin)
     pg_phs.map(_.setIdle())
     // actual logic
     when(pulsePlugin.logic.sel) {
+      rfArea.startTime.addAttribute("MAX_FANOUT", 16)
+      rfArea.startTime := pulsePlugin.logic.start.asUInt
       val id = pulsePlugin.logic.id.asUInt.resized
       val addr = pulsePlugin.logic.addr.asUInt.resized
       pg_addrs(id).push(addr)
