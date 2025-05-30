@@ -92,48 +92,48 @@ object CountIterationCycles extends App {
     var ticks = 0
     val fuel = 500
 
-    // val x4_values = List(3, 8, 12, 15, 17, 18)
-    // for (x4_value <- x4_values) {
-    //   var reached = false
-    //   while (!reached && ticks < fuel) {
-    //     val x5 = getRf(5)
-    //     val x4 = getRf(4)
-    //     if (x4 == x4_value) {
-    //       reached = true
-    //       println(f"reached x4 = ${x4} at time = ${ticks}")
-    //     } else {
-    //       tick()
-    //       ticks += 1
-    //     }
-    //   }
-    // }
-
-    // var done = false
-    // while (ticks < fuel && !done) {
-    //   val x5 = getRf(5)
-    //   if (x5 != 0) {
-    //     done = true
-    //     println(f"done at time = ${ticks}")
-    //   } else {
-    //     // val sel = bbp.logic.writeBtb.sel.toBoolean
-    //     // val pctrue = bbp.logic.writeBtb.pctrue.toBigInt
-    //     // val pc = bbp.logic.writeBtb.pc.toBigInt
-    //     // val tag = bbp.logic.writeBtb.tag.toBigInt
-    //     // if (sel) {
-    //     //   println(f"btb write selected")
-    //     //   println(f"time = $ticks, pc = $pc, pctrue = $pctrue, tag = $tag")
-    //     // }
-    //     tick()
-    //     ticks += 1
-    //   }
-    // }
-    
-    for(i <- 0 until 40) {
-      tick()
-      ticks += 1
-      println(f"t = $ticks")
-      logPcs()
+    val x4_values = List(3, 8, 12, 15, 17, 18)
+    for (x4_value <- x4_values) {
+      var reached = false
+      while (!reached && ticks < fuel) {
+        val x5 = getRf(5)
+        val x4 = getRf(4)
+        if (x4 == x4_value) {
+          reached = true
+          println(f"reached x4 = ${x4} at time = ${ticks}")
+        } else {
+          tick()
+          ticks += 1
+        }
+      }
     }
+
+    var done = false
+    while (ticks < fuel && !done) {
+      val x5 = getRf(5)
+      if (x5 != 0) {
+        done = true
+        println(f"done at time = ${ticks}")
+      } else {
+        // val sel = bbp.logic.writeBtb.sel.toBoolean
+        // val pctrue = bbp.logic.writeBtb.pctrue.toBigInt
+        // val pc = bbp.logic.writeBtb.pc.toBigInt
+        // val tag = bbp.logic.writeBtb.tag.toBigInt
+        // if (sel) {
+        //   println(f"btb write selected")
+        //   println(f"time = $ticks, pc = $pc, pctrue = $pctrue, tag = $tag")
+        // }
+        tick()
+        ticks += 1
+      }
+    }
+    
+    // for(i <- 0 until 40) {
+    //   tick()
+    //   ticks += 1
+    //   println(f"t = $ticks")
+    //   logPcs()
+    // }
 
     if (ticks >= fuel) {
       println("out of fuel")
